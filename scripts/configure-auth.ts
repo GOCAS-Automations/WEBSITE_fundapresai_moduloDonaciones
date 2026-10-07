@@ -1,11 +1,12 @@
 /**
  * Configura Supabase Auth con la Management API (plan §4 y §9).
  *
- * - Registro público desactivado (Cesar crea los usuarios en el dashboard).
- * - site_url y lista de redirecciones permitidas.
- * - Correos de recuperación e invitación en español.
+ * 1. Registro público desactivado (Cesar crea los usuarios en el dashboard),
+ *    site_url y lista de redirecciones permitidas.
+ * 2. Correos de recuperación e invitación en español. En el plan gratuito
+ *    Supabase solo deja editarlos si hay un SMTP propio: si no, se avisa y sigue.
  *
- * Uso:  npx tsx scripts/configure-auth.ts [--site-url https://midominio]
+ * Uso:  npm run auth:configure [-- --site-url https://midominio]
  * Requiere SUPABASE_ACCESS_TOKEN (sbp_...) y NEXT_PUBLIC_SUPABASE_URL.
  *
  * Los enlaces de los correos usan token_hash y apuntan a /auth/confirm, que se
@@ -16,7 +17,9 @@ import { loadLocalEnv, projectRef, requireEnv } from "./lib/env";
 
 const PURPLE = "#5f2c85";
 
-function emailTemplate({ title, intro, cta, href, outro }: { title: string; intro: string; cta: string; href: string; outro: string }) {
+type TemplateInput = { title: string; intro: string; cta: string; href: string; outro: string };
+
+function emailTemplate({ title, intro, cta, href, outro }: TemplateInput) {
   return `<!doctype html>
 <html lang="es">
   <body style="margin:0;padding:24px;background:#f5f5f7;font-family:Poppins,Segoe UI,Roboto,Arial,sans-serif;color:#2b2233;">
@@ -41,17 +44,20 @@ async function main() {
   const token = requireEnv("SUPABASE_ACCESS_TOKEN");
   const siteArg = process.argv.indexOf("--site-url");
   const siteUrl = siteArg > -1 ? process.argv[siteArg + 1] : "http://localhost:3000";
-
   const confirmBase = "{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}";
 
-  const body = {
+  const base = {
     disable_signup: true,
     site_url: siteUrl,
     uri_allow_list: ["http://localhost:3000/**", "https://*.vercel.app/**"].join(","),
+  };
+
+  const templates = {
     mailer_subjects_recovery: "Restablezca su contraseña del panel de Fundapresai",
     mailer_templates_recovery_content: emailTemplate({
       title: "Restablezca su contraseña",
-      intro: "Recibimos una solicitud para cambiar la contraseña de su cuenta del panel de Fundapresai. Toque el botón para crear una nueva.",
+      intro:
+        "Recibimos una solicitud para cambiar la contraseña de su cuenta del panel de Fundapresai. Toque el botón para crear una nueva.",
       cta: "Crear nueva contraseña",
       href: `${confirmBase}&type=recovery&next=/admin/restablecer`,
       outro: "Si usted no lo solicitó, puede ignorar este correo: su contraseña no cambiará. El enlace vence en una hora.",
@@ -59,36 +65,49 @@ async function main() {
     mailer_subjects_invite: "Su acceso al panel de Fundapresai",
     mailer_templates_invite_content: emailTemplate({
       title: "Le damos la bienvenida al panel de Fundapresai",
-      intro: "Le crearon una cuenta para administrar el sitio de donaciones de Fundapresai. Toque el botón para crear su contraseña.",
+      intro:
+        "Le crearon una cuenta para administrar el sitio de donaciones de Fundapresai. Toque el botón para crear su contraseña.",
       cta: "Crear mi contraseña",
       href: `${confirmBase}&type=invite&next=/admin/restablecer`,
       outro: "Si no esperaba este correo, puede ignorarlo.",
     }),
   };
 
-  const res = await fetch(`https://api.supabase.com/v1/projects/${ref}/config/auth`, {
-    method: "PATCH",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const text = await res.text();
-  if (!res.ok) throw new Error(`Management API respondió ${res.status}: ${text.slice(0, 400)}`);
-
-  const cfg = JSON.parse(text) as Record<string, unknown>;
-  const check = {
-    disable_signup: cfg.disable_signup,
-    site_url: cfg.site_url,
-    uri_allow_list: cfg.uri_allow_list,
-    mailer_subjects_recovery: cfg.mailer_subjects_recovery,
-    mailer_subjects_invite: cfg.mailer_subjects_invite,
-    smtp_configurado: Boolean(cfg.smtp_host),
+  const patch = async (body: Record<string, unknown>) => {
+    const res = await fetch(`https://api.supabase.com/v1/projects/${ref}/config/auth`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    return { ok: res.ok, status: res.status, text: await res.text() };
   };
+
+  const first = await patch(base);
+  if (!first.ok) throw new Error(`Management API respondió ${first.status}: ${first.text.slice(0, 400)}`);
+  let cfg = JSON.parse(first.text) as Record<string, unknown>;
+
+  const second = await patch(templates);
+  if (second.ok) cfg = JSON.parse(second.text) as Record<string, unknown>;
+  else console.warn(`Plantillas de correo NO aplicadas (${second.status}): ${second.text.slice(0, 300)}`);
+
   console.log(`Auth configurado en el proyecto ${ref}:`);
-  console.log(JSON.stringify(check, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        disable_signup: cfg.disable_signup,
+        site_url: cfg.site_url,
+        uri_allow_list: cfg.uri_allow_list,
+        plantillas_en_espanol: second.ok,
+        smtp_configurado: Boolean(cfg.smtp_host),
+      },
+      null,
+      2,
+    ),
+  );
   if (!cfg.smtp_host) {
     console.warn(
-      "Aviso: sin SMTP propio, Supabase solo envía correos a los miembros del equipo del proyecto y con un límite bajo. " +
-        "Configure un SMTP (Auth → SMTP Settings) para que Angela reciba los correos de recuperación.",
+      "Aviso: sin SMTP propio, Supabase solo envía correos a los miembros del equipo del proyecto, con un límite bajo, " +
+        "y no deja traducir las plantillas. Configure un SMTP (Auth → SMTP Settings) y vuelva a correr este script.",
     );
   }
 }
