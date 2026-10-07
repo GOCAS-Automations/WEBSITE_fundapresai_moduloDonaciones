@@ -1,0 +1,42 @@
+# Latido de respaldo de Supabase (plan §10.1).
+# Complementa el Vercel Cron diario: si alguno falla, el otro mantiene la base activa.
+#
+# Secretos requeridos (Settings → Secrets and variables → Actions):
+#   CRON_SECRET  mismo valor que en Vercel
+#   SITE_URL     URL pública del sitio, sin barra final (p. ej. https://<proyecto>.vercel.app)
+#
+# GitHub DESACTIVA los workflows programados de repos sin commits en 60 días.
+# Para reactivarlo: Actions → «Latido de Supabase» → Enable workflow (ver README).
+name: Latido de Supabase
+
+on:
+  schedule:
+    - cron: "17 15 */2 * *" # cada 2 días, 15:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: heartbeat
+  cancel-in-progress: false
+
+jobs:
+  latido:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Llamar /api/heartbeat
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          SITE_URL: ${{ secrets.SITE_URL }}
+        run: |
+          if [ -z "$CRON_SECRET" ] || [ -z "$SITE_URL" ]; then
+            echo "::error::Faltan los secretos CRON_SECRET o SITE_URL."
+            exit 1
+          fi
+          # -f: falla si la respuesta no es 2xx → el job falla y GitHub avisa por correo.
+          curl -fsS --retry 3 --retry-delay 20 --retry-all-errors --max-time 30 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "${SITE_URL%/}/api/heartbeat?source=github-action"
+          echo
