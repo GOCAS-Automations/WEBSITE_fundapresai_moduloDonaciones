@@ -183,3 +183,15 @@ export async function getFeaturedCampaign(): Promise<PublicCampaign | null> {
   const campaigns = await getActiveCampaigns();
   return campaigns.find((c) => c.is_featured) ?? campaigns[0] ?? null;
 }
+
+/**
+ * Año actual para el «©» del pie. Con Cache Components, `new Date()` no se
+ * puede leer en el prerender fuera de una función cacheada; así queda dentro
+ * del HTML estático y se renueva a diario (cacheLife «days»), lo que hace que
+ * la landing se regenere en segundo plano como mucho una vez al día.
+ */
+export async function getCopyrightYear(): Promise<number> {
+  "use cache";
+  cacheLife("days");
+  return new Date().getFullYear();
+}
