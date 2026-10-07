@@ -50,6 +50,7 @@ Node 22 o superior. `npm run build` y `npm run lint` deben pasar sin errores. El
 | `npm run covers:prepare` | Recorta las portadas originales a 16:10 |
 | `npm run brand:assets` | Regenera logos, íconos y la portada provisional (requiere `pdftocairo`) |
 | `npm run check:contrast` | Verifica el contraste WCAG de los tokens de color |
+| `npm run shots` | Capturas de página completa (375 y 1440 px) en `../Capturas/fase2/` y chequeos: scroll horizontal (320–1440 px y zoom 200 %), un solo h1, texto ≥ 16 px y tocables ≥ 48 px. `-- --axe` agrega axe-core. Solo contra `localhost`, con el Chrome instalado (`CHROME_PATH`) |
 
 ## Base de datos
 
