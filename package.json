@@ -17,7 +17,8 @@
     "seed:images": "tsx scripts/seed-images.ts",
     "backup": "tsx scripts/backup.ts",
     "auth:configure": "tsx scripts/configure-auth.ts",
-    "test:rls": "tsx scripts/test-rls.ts"
+    "test:rls": "tsx scripts/test-rls.ts",
+    "shots": "tsx scripts/screenshot.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
@@ -37,9 +38,11 @@
     "@types/pg": "^8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "axe-core": "^4.14.0",
     "eslint": "^9",
     "eslint-config-next": "16.4.0",
     "pg": "^8.23.1",
+    "playwright-core": "^1.64.0",
     "sharp": "^0.35.5",
     "tailwindcss": "^4",
     "tsx": "^4.23.15",
