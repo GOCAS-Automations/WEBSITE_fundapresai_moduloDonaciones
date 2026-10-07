@@ -186,6 +186,14 @@ async function main() {
     await sharp(vertical).resize({ width: 720 }).png({ compressionLevel: 9 }).toFile(out("public/brand/logo-vertical.png"));
     await sharp(symbol).resize({ width: 512 }).png({ compressionLevel: 9 }).toFile(out("public/brand/simbolo.png"));
 
+    // Logo vertical sin el lema (símbolo + nombre), para el pie: allí el lema va
+    // como texto real, legible y a buen tamaño, en vez de letra diminuta en imagen.
+    const [, titleBand] = bands;
+    await sharp(await trim(await sharp(vertical).extract({ left: 0, top: 0, width, height: titleBand[1] + 1 }).png().toBuffer()))
+      .resize({ width: 560 })
+      .png({ compressionLevel: 9 })
+      .toFile(out("public/brand/logo-vertical-sin-lema.png"));
+
     // Logo horizontal con las proporciones del JPEG original (medidas en px del JPEG):
     // símbolo 124×89; nombre 280 de ancho; lema 279; 7 px entre líneas; 20 px entre símbolo y texto.
     const unit = 4; // escala: alto final del símbolo = 89 × 4 = 356 px
