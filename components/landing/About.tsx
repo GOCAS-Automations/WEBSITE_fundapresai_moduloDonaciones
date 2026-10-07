@@ -1,0 +1,113 @@
+import { MapPin } from "lucide-react";
+import Markdown from "react-markdown";
+
+import { LeafSymbol } from "@/components/brand/LeafSymbol";
+import { Container } from "@/components/ui/Container";
+import type { About as AboutContent } from "@/lib/validations";
+import { SectionHeading } from "./SectionHeading";
+
+/** Los cinco valores humanos del colegio (texto de la campaña «Colegio de Valores Humanos»). */
+const VALUES = ["Verdad", "Rectitud", "Paz", "Amor", "No violencia"];
+
+/** Fondo de cada cifra, en orden. */
+const STAT_TILES = [
+  "bg-brand-cream/80 ring-brand-terracotta/15",
+  "bg-brand-pink-soft ring-brand-pink/40",
+  "bg-brand-periwinkle-soft ring-brand-periwinkle/20",
+  "bg-brand-purple-soft ring-brand-purple/10",
+];
+
+type AboutProps = {
+  content: AboutContent;
+  city: string | null;
+};
+
+/**
+ * «Quiénes somos» (plan §5.1). Sin foto real todavía, así que en lugar de
+ * fotos de stock va una composición gráfica con la paleta y el símbolo, con
+ * las cifras grandes. Si en el panel se carga `image_url`, conviene mostrarla
+ * en la baldosa morada (fase 4).
+ */
+export function About({ content, city }: AboutProps) {
+  return (
+    <section id="quienes-somos" aria-labelledby="quienes-somos-title" className="bg-[#fdf8ef] py-20 lg:py-28">
+      <Container className="grid items-start gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-20">
+        <div>
+          <SectionHeading id="quienes-somos-title" eyebrow="Fundapresai" title={content.title} />
+          <div className="mt-6 max-w-[38rem] space-y-5 text-ink-muted [&_strong]:font-semibold [&_strong]:text-ink">
+            <Markdown
+              allowedElements={["p", "strong", "em", "ul", "ol", "li", "a"]}
+              unwrapDisallowed
+              components={{
+                a: ({ href, children }) => (
+                  <a href={href} className="font-medium text-brand-purple underline underline-offset-4">
+                    {children}
+                  </a>
+                ),
+              }}
+            >
+              {content.body_md}
+            </Markdown>
+          </div>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          {/* Baldosa principal: el colegio. */}
+          <div className="relative isolate overflow-hidden rounded-[var(--radius-panel)] bg-[linear-gradient(140deg,#6d3896_0%,var(--color-brand-purple)_45%,#3f1c5a_100%)] p-7 text-white shadow-lifted sm:col-span-2 sm:p-8">
+            <div aria-hidden="true" className="absolute -right-10 -top-6 -z-10 w-72 text-white/[0.09] sm:w-80">
+              <LeafSymbol tone="mono" />
+            </div>
+            <div
+              aria-hidden="true"
+              className="absolute -bottom-24 -left-16 -z-10 size-64 rounded-full bg-brand-periwinkle/30 blur-3xl"
+            />
+            <span className="grid size-14 place-items-center rounded-2xl bg-white/95 shadow-soft">
+              <LeafSymbol className="w-9" />
+            </span>
+            <p className="mt-10 text-sm font-semibold uppercase tracking-[0.12em] text-white/85">Nuestra obra</p>
+            <p className="mt-1 text-2xl font-semibold leading-snug sm:text-3xl sm:leading-tight">
+              Colegio de Valores Humanos Sathya Sai
+            </p>
+            {city && (
+              <p className="mt-3 inline-flex items-center gap-2 text-white/90">
+                <MapPin aria-hidden="true" className="size-5" />
+                {city}
+              </p>
+            )}
+          </div>
+
+          {content.stats.map((stat, index) => (
+            <div
+              key={stat.label}
+              className={`rounded-[var(--radius-panel)] p-7 ring-1 sm:p-8 ${STAT_TILES[index % STAT_TILES.length]}`}
+            >
+              <p className="text-[3.25rem] font-semibold leading-none tracking-[-0.03em] text-brand-purple sm:text-6xl">
+                {stat.value}
+              </p>
+              <p className="mt-3 text-ink">{stat.label}</p>
+            </div>
+          ))}
+
+          {/* Valores: va a lo ancho si el número de cifras es par. */}
+          <div
+            className={`rounded-[var(--radius-panel)] bg-surface p-7 shadow-soft ring-1 ring-black/[0.05] sm:p-8 ${
+              content.stats.length % 2 === 0 ? "sm:col-span-2" : ""
+            }`}
+          >
+            <p className="text-lg font-semibold text-ink">Educación basada en valores humanos</p>
+            <ul className="mt-4 flex flex-wrap gap-2">
+              {VALUES.map((value) => (
+                <li
+                  key={value}
+                  className="rounded-full bg-brand-purple-soft px-4 py-1.5 text-base font-medium text-brand-purple"
+                >
+                  {value}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </Container>
+    </section>
+  );
+}
