@@ -19,7 +19,7 @@ export function Container<T extends ElementType = "div">({
     <Tag
       className={cn(
         "mx-auto w-full px-5 sm:px-6 lg:px-8",
-        width === "narrow" ? "max-w-3xl" : "max-w-6xl",
+        width === "narrow" ? "max-w-3xl" : "max-w-7xl",
         className,
       )}
       {...rest}

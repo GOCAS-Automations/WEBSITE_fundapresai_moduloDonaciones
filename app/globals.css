@@ -14,7 +14,12 @@
   --color-brand-purple-soft: #f3edf8;
   --color-brand-periwinkle: #7186be;
   --color-brand-periwinkle-soft: #eef1f9;
+  /* Periwinkle oscuro: íconos y texto sobre su tinte (6,6:1). */
+  --color-brand-periwinkle-ink: #3f5191;
   --color-brand-orange: #e95620;
+  /* Naranja oscuro para texto o íconos (5:1 sobre su tinte) y tinte suave. */
+  --color-brand-orange-ink: #b5400f;
+  --color-brand-orange-soft: #fdeee6;
   --color-brand-terracotta: #e27945;
   --color-brand-pink: #eebec5;
   --color-brand-pink-soft: #fbeef0;
@@ -26,6 +31,11 @@
   --color-surface: #ffffff;
   --color-surface-muted: #f5f5f7;
   --color-separator: #e4e0e8;
+
+  /* WhatsApp: verde oscuro para que el texto blanco pase AAA (7:1).
+     El verde de marca #25d366 con blanco da 2:1 y no se usa. */
+  --color-whatsapp: #0a6640;
+  --color-whatsapp-dark: #08502f;
 
   /* Estados (panel) */
   --color-warning-bg: #fff4d6;
@@ -57,8 +67,9 @@
   --text-6xl--line-height: 1.08;
 
   /* Radios estilo iOS */
-  --radius-button: 1rem;
-  --radius-card: 1.5rem;
+  --radius-button: 9999px; /* píldora */
+  --radius-card: 1.5rem; /* tarjetas: 24 px */
+  --radius-panel: 2rem; /* bloques grandes: 32 px */
 
   /* Sombras suaves y difusas */
   --shadow-soft: 0 1px 2px rgb(43 34 51 / 0.04), 0 8px 24px rgb(43 34 51 / 0.06);
@@ -67,6 +78,8 @@
 
 @layer base {
   html {
+    /* Las anclas (#campanas…) no quedan debajo del header fijo. */
+    scroll-padding-top: 6.5rem;
     /* Respeta el tamaño de letra del sistema: todo en rem. */
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
@@ -131,4 +144,14 @@
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* Fondo del hero: degradados suaves de la paleta (crema, rosa, periwinkle). */
+@utility bg-hero-mesh {
+  background-color: #fffaf3;
+  background-image:
+    radial-gradient(56rem 38rem at 92% -8%, var(--color-brand-pink-soft) 0%, transparent 62%),
+    radial-gradient(48rem 34rem at -10% -10%, var(--color-brand-cream) 0%, transparent 60%),
+    radial-gradient(44rem 30rem at 78% 82%, var(--color-brand-periwinkle-soft) 0%, transparent 65%),
+    linear-gradient(180deg, #fffaf3 0%, #fdf8f6 55%, var(--color-surface-muted) 100%);
 }
