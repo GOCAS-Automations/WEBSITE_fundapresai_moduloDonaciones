@@ -74,7 +74,7 @@ export function UserManager({ users, currentUserId }: { users: PanelUserView[]; 
                 <div className="flex items-start gap-4">
                   <span
                     aria-hidden="true"
-                    className="grid size-12 shrink-0 place-items-center rounded-full bg-brand-purple-soft text-lg font-semibold text-brand-purple"
+                    className="hidden size-12 shrink-0 place-items-center rounded-full bg-brand-purple-soft sm:grid text-lg font-semibold text-brand-purple"
                   >
                     {initials(user.name || user.email)}
                   </span>
@@ -86,7 +86,7 @@ export function UserManager({ users, currentUserId }: { users: PanelUserView[]; 
                     <p className="break-all text-base text-ink-muted">{user.email}</p>
                     {user.isSuper && (
                       <p className="mt-2">
-                        <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-orange-soft px-3 py-0.5 text-base font-semibold text-brand-orange-ink">
+                        <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-brand-orange-soft px-3 py-0.5 text-base font-semibold text-brand-orange-ink">
                           <ShieldCheck aria-hidden="true" className="size-[1.125rem]" />
                           Administrador general
                         </span>
