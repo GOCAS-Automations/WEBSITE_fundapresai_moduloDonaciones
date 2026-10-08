@@ -46,6 +46,7 @@ Node 22 o superior. `npm run build` y `npm run lint` deben pasar sin errores. El
 | `npm run seed:images` | Sube las portadas de `supabase/seed-images/` al bucket `media` y actualiza `cover_image_url` (`-- --force` reemplaza portadas propias) |
 | `npm run auth:configure` | Registro desactivado, `site_url`, redirecciones y (si hay SMTP) correos en español. `-- --site-url https://...` al publicar |
 | `npm run test:rls` | Prueba de seguridad con usuario anónimo (lectura, escritura, Storage, funciones) |
+| `npm run test:admin` | Prueba de punta a punta del panel contra `localhost` (con `npm run build && npm run start` corriendo): crea un admin y un usuario sin permisos **temporales**, prueba login, edición del hero, CRUD de campañas con imagen subida y por URL, ocultar, eliminar con modal, reordenar, destacada, recuperación de contraseña y RLS; toma capturas en `../Capturas/fase4/` y corre chequeos + axe. Al final borra todo lo de prueba y deja `campaigns` y `site_settings` idénticos al respaldo más reciente (`npm run backup` antes; `-- --backup <dir>` para elegir otro, `-- --no-shots` sin capturas). Requiere `SUPABASE_DB_URL` para restaurar `updated_at` |
 | `npm run backup` | Exporta `campaigns` y `site_settings` a `backups/` (ignorado por git) |
 | `npm run covers:prepare` | Recorta las portadas originales a 16:10 |
 | `npm run brand:assets` | Regenera logos, íconos y la portada provisional (requiere `pdftocairo`) |
@@ -64,14 +65,46 @@ Migraciones en `supabase/migrations/` (no se editan una vez aplicadas: se crea u
 
 ### Crear un usuario administrador
 
-El registro público está desactivado. En el dashboard de Supabase: **Authentication → Users → Add user** (correo y contraseña, marcando «Auto confirm»). Luego, en el **SQL Editor**:
+El registro público está desactivado. Dos pasos:
+
+1. **Dashboard de Supabase → Authentication → Users → Add user → Create new user**: correo y una contraseña provisional, con **«Auto Confirm User»** marcado.
+2. **SQL Editor** (el nombre se usa en el saludo del panel: «Hola, Angela»):
 
 ```sql
 insert into public.admins (user_id, name)
 select id, 'Angela María Ramírez' from auth.users where email = 'correo@ejemplo.org';
 ```
 
-**Correo de recuperación:** sin SMTP propio, Supabase solo envía correos a los miembros del equipo del proyecto y no deja traducir las plantillas. Para que «Olvidé mi contraseña» le llegue a Angela, configure un SMTP en **Authentication → SMTP Settings** (p. ej. Resend o Brevo, plan gratuito) y vuelva a correr `npm run auth:configure`.
+Para quitar el acceso: `delete from public.admins where user_id = (select id from auth.users where email = 'correo@ejemplo.org');` (el usuario sigue existiendo, pero el panel le muestra «Su cuenta no tiene acceso» y RLS le bloquea toda escritura). Borrar el usuario en Authentication también borra su fila en `admins`.
+
+**Correo de recuperación:** sin SMTP propio, Supabase solo envía correos a los miembros del equipo del proyecto y no deja traducir las plantillas. Para que «¿Olvidó su contraseña?» le llegue a Angela, configure un SMTP en **Authentication → SMTP Settings** (p. ej. Resend o Brevo, plan gratuito) y vuelva a correr `npm run auth:configure`. Mientras tanto, si Angela olvida su contraseña, Cesar puede asignarle una nueva con la API de administración (`supabase.auth.admin.updateUserById(id, { password })`, con la clave secreta) o borrar el usuario y crearlo de nuevo (y volver a agregarlo a `admins`).
+
+## Panel administrativo (`/admin`)
+
+| Ruta | Qué hace |
+|---|---|
+| `/admin/login` | Entrar con correo y contraseña (página estática; `?next=` vuelve a la ruta pedida) |
+| `/admin/recuperar` | «¿Olvidó su contraseña?»: `resetPasswordForEmail` desde el navegador |
+| `/auth/confirm` | Route handler de los enlaces de Auth: `token_hash` + `verifyOtp` (plantillas propias) o `code` + `exchangeCodeForSession` (PKCE, plantilla por defecto) |
+| `/admin/restablecer` | Definir la nueva contraseña (con la sesión que abre el enlace) |
+| `/admin` | Inicio: «Editar sitio», «Campañas», «Ver sitio» y estado del latido (aviso ámbar si pasan más de 72 h) |
+| `/admin/contenido` | Un formulario por bloque de `site_settings`, cada uno con su «Guardar» |
+| `/admin/campanas`, `/nueva`, `/[id]/editar` | Listado (ordenar ↑ ↓, ocultar/mostrar, eliminar con modal), crear y editar |
+
+**Protección doble:** `proxy.ts` refresca la sesión (`@supabase/ssr`) y manda a `/admin/login` si no hay sesión (login, recuperar y restablecer quedan libres). Además, el layout del panel y **cada Server Action** verifican en el servidor `is_admin()` (`requireAdmin()` en `lib/supabase/server.ts`); un usuario autenticado que no esté en `admins` ve un aviso amable y ningún formulario, y RLS le bloquea cualquier escritura igual. Las acciones revalidan el sitio con `lib/revalidate.ts`, así que los cambios se ven en `/` al recargar.
+
+**Recuperar contraseña:** el formulario pide el correo desde el navegador (así queda la cookie PKCE) con `redirectTo = <origen>/auth/confirm?next=/admin/restablecer`. Con la plantilla por defecto de Supabase el enlace trae `?code=` y **solo funciona en el mismo navegador** donde se pidió (si no, se le pide uno nuevo con ese aviso). Con SMTP propio, `npm run auth:configure` instala plantillas en español con `token_hash`, que funcionan en cualquier dispositivo. El flujo `token_hash` está probado de punta a punta (`npm run test:admin`).
+
+**Estados de campaña:** Activa (se ve), Borrador y Oculta (no se ven). «Publicar» o «Mostrar» desde el listado exige que la campaña esté completa (mismo esquema Zod). La destacada es una sola: `set_featured_campaign()` desmarca las demás en una transacción. En `/` la destacada siempre va primero; el resto sigue el orden del listado.
+
+### Imágenes del panel
+
+Todo campo de imagen (portadas, hero, «Quiénes somos» e imagen para redes) tiene dos pestañas:
+
+- **Subir imagen** (computador o celular): el navegador reduce la foto a ~2000 px de lado mayor y la comprime a **WebP** (calidad 0,82; JPEG si el navegador no sabe crear WebP), así una foto de celular de 5–10 MB queda en unos cientos de KB, por debajo del límite de 5 MB del bucket. La imagen para redes sociales va en **JPEG de 1200 px** (WhatsApp y Facebook la leen mejor). Se sube al bucket `media` con nombre único: `campanas/<slug>-<timestamp>.webp` o `sitio/<bloque>-<timestamp>.webp`. Las fotos HEIC solo se leen si el navegador las soporta (Safari en iPhone las convierte solo).
+- **Pegar enlace:** solo `https://`, y el panel **comprueba que la URL cargue una imagen** en el navegador antes de dejar guardar. Los enlaces de compartir de **Google Drive** (`/file/d/<id>/view`, `open?id=`, `uc?id=`) se convierten a `https://lh3.googleusercontent.com/d/<id>=w2000`. Probado el 2026-10-07: `uc?export=view` y `drive.usercontent.google.com` ya no sirven dentro de una página (Google responde 403 a peticiones de imagen y Chrome lo bloquea con ORB); `lh3` sí carga si el archivo está compartido como «Cualquier persona con el enlace», aunque Google lo limita (429) ante muchas visitas seguidas. Por eso el panel recomienda «Subir imagen» para fotos importantes. Las carpetas de Drive y los enlaces de Google Fotos se rechazan con un aviso.
+- **next/image y CSP (sin cambios en `next.config.ts`):** las imágenes del bucket se optimizan (`remotePatterns`); las externas (Drive, otras nubes) se muestran con `unoptimized` (`lib/images.ts`) y las carga el navegador directo, lo que la CSP ya permite (`img-src https: data: blob:`). Se descartó `remotePatterns` con `**`: abriría `/_next/image` como proxy para cualquier dominio y gastaría la cuota de optimización de Vercel Hobby.
+- Las imágenes reemplazadas o de campañas eliminadas **no se borran** del bucket (pueden estar en uso en otro bloque). Si algún día se acerca al 1 GB del plan gratuito, se limpian a mano en Storage.
 
 ## Latido de Supabase (heartbeat)
 
@@ -107,7 +140,8 @@ curl -X POST "$SUPABASE_URL/rest/v1/campaigns" \
 
 - **Logos:** Cesar indicó que el logo solo existe en JPEG, pero `Insumos/Identidad visual Fundapresai.pdf` trae el **logo vectorial** (exportado de Illustrator). `npm run brand:assets` lo renderiza a 1200 dpi con fondo transparente real (sin halos), corrige los colores a los hex del manual y genera `public/brand/` (horizontal, vertical, símbolo), `app/favicon.ico`, `app/icon.png`, `app/apple-icon.png` y los íconos del manifest. Si la fundación entrega un SVG oficial, conviene reemplazarlos.
 - **Portadas:** las de Donar Online no vienen en 16:10 y traen texto incrustado; `supabase/seed-images/` tiene recortes provisionales (originales en `originales/`). La de «Colegio de Valores Humanos» es una imagen con la paleta y el símbolo: **falta una foto real**. Se reemplazan desde el panel.
-- **next/image:** solo se optimizan las imágenes del bucket de Supabase (`remotePatterns`). Las URL externas que se peguen en el panel se muestran con `unoptimized` (`lib/images.ts`), para no abrir un proxy de imágenes ni gastar la cuota de Vercel Hobby.
+- **next/image:** solo se optimizan las imágenes del bucket de Supabase (`remotePatterns`). Las URL externas que se peguen en el panel se muestran con `unoptimized` (`lib/images.ts`), para no abrir un proxy de imágenes ni gastar la cuota de Vercel Hobby (ver «Imágenes del panel»).
+- **Hero y «Quiénes somos»:** la foto de «Quiénes somos» aparece a lo ancho sobre la tarjeta morada. La imagen del hero solo se muestra si no hay ninguna campaña activa (el diseño aprobado usa la campaña destacada). Ambas son decorativas (`alt=""`): el esquema no tiene texto alternativo para ellas.
 
 ## Seguridad
 
@@ -117,7 +151,9 @@ Cabeceras en `next.config.ts`: CSP, HSTS, `nosniff`, `Referrer-Policy`, `X-Frame
 
 - **Cache Components** está activo: las lecturas públicas (`lib/content.ts`) usan `"use cache"` + `cacheTag` + `cacheLife("max")`. El panel debe invalidar con `updateTag`/`revalidateTag(tag, "max")` y `revalidatePath`.
 - Con Cache Components no existen `export const dynamic` ni `export const runtime`: `/api/heartbeat` es dinámico porque lee las cabeceras y corre en Node.js.
-- El middleware se llama `proxy.ts` en Next 16 (se agrega en la fase 4 para el panel).
+- El middleware se llama `proxy.ts` en Next 16 (solo corre en `/admin`; las páginas públicas siguen estáticas).
+- Todo lo que lee la sesión en el panel va dentro de `<Suspense>` (regla de Cache Components); `/admin/login` es estática y lee `?next=` en el navegador.
+- Los formularios del panel se envían con `onSubmit` + `startTransition` en vez de `<form action>`: React 19 vacía los campos no controlados después de una acción, y Angela perdería lo escrito si hay un error.
 
 ## Pendientes del cliente
 
