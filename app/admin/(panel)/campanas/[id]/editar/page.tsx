@@ -11,7 +11,7 @@ import { getAdminContext } from "@/lib/admin/session";
 export const metadata: Metadata = { title: "Editar campaña" };
 
 const COLUMNS =
-  "id, slug, title, tag, summary, body_md, cover_image_url, cover_image_alt, donation_url, donation_note, progress_percent, status, is_featured, seo_title, seo_description";
+  "id, slug, title, tag, summary, body_md, cover_image_url, cover_image_alt, donation_url, donation_note, progress_percent, progress_label, status, is_featured, seo_title, seo_description";
 
 export default async function EditCampaignPage({ params }: PageProps<"/admin/campanas/[id]/editar">) {
   const ctx = await getAdminContext();

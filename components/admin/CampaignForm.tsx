@@ -24,7 +24,7 @@ import {
 import { FormMessage, SubmitButton, TextField, useAdminForm } from "./form";
 import { ImageField } from "./ImageField";
 import { MarkdownEditor } from "./MarkdownEditor";
-import { Section } from "./ui";
+import { Notice, Section } from "./ui";
 
 export type CampaignFormValues = {
   id: string;
@@ -38,6 +38,7 @@ export type CampaignFormValues = {
   donation_url: string;
   donation_note: string | null;
   progress_percent: number | null;
+  progress_label: string | null;
   status: CampaignStatus;
   is_featured: boolean;
   seo_title: string | null;
@@ -216,17 +217,33 @@ export function CampaignForm({ campaign, currentFeaturedTitle }: CampaignFormPro
             error={e.donation_note}
             hint="Ejemplo: Aporte mensual sugerido desde $120.000"
           />
-          <TextField
-            label="Avance de la meta (%)"
-            name="progress_percent"
-            optional
-            inputMode="numeric"
-            autoComplete="off"
-            defaultValue={campaign?.progress_percent?.toString() ?? ""}
-            error={e.progress_percent}
-            hint="Número del 0 al 100. Si lo deja vacío, no se muestra la barra de avance."
-            className="sm:max-w-xs"
-          />
+          <div className="space-y-5">
+            <TextField
+              label="Avance de la meta (%)"
+              name="progress_percent"
+              optional
+              inputMode="numeric"
+              autoComplete="off"
+              defaultValue={campaign?.progress_percent?.toString() ?? ""}
+              error={e.progress_percent}
+              hint="Número del 0 al 100. Si lo deja vacío, no se muestra la barra de avance."
+              className="sm:max-w-xs"
+            />
+            <TextField
+              label="Texto del avance"
+              name="progress_label"
+              optional
+              max={60}
+              autoComplete="off"
+              defaultValue={campaign?.progress_label ?? ""}
+              error={e.progress_label}
+              hint="Va junto al porcentaje y dice qué mide. Ejemplo: de las becas ya están cubiertas. Si lo deja vacío, se muestra «de la meta»."
+            />
+            <Notice tone="info">
+              <strong className="font-semibold">Este dato no se actualiza solo:</strong> cámbielo cuando la fundación
+              tenga una cifra nueva.
+            </Notice>
+          </div>
         </div>
       </Section>
 

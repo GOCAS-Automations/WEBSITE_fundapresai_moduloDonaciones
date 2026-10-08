@@ -3,7 +3,7 @@ import { HandCoins } from "lucide-react";
 import { DonateLink, DonateNote } from "@/components/campaign/DonateLink";
 import { WhatsappIcon } from "@/components/icons/SocialIcons";
 import { cn } from "@/components/ui/cn";
-import { ProgressBar } from "@/components/ui/ProgressBar";
+import { ProgressBar, progressLabelOf } from "@/components/ui/ProgressBar";
 import type { PublicCampaign } from "@/lib/content";
 import { whatsappHref } from "@/lib/links";
 
@@ -46,7 +46,7 @@ export function DonationCard({ campaign, whatsapp, className }: DonationCardProp
       )}
 
       {campaign.progress_percent !== null && (
-        <ProgressBar value={campaign.progress_percent} label="de la meta" className="mt-6" />
+        <ProgressBar value={campaign.progress_percent} label={progressLabelOf(campaign)} className="mt-6" />
       )}
 
       <DonateLink campaign={campaign} size="xl" fullWidth className="mt-7" />

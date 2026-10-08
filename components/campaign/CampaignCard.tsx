@@ -4,7 +4,7 @@ import { CampaignCover } from "@/components/campaign/CampaignCover";
 import { DonateLink, DonateNote } from "@/components/campaign/DonateLink";
 import { ButtonLink } from "@/components/ui/Button";
 import { cn } from "@/components/ui/cn";
-import { ProgressBar } from "@/components/ui/ProgressBar";
+import { ProgressBar, progressLabelOf } from "@/components/ui/ProgressBar";
 import { Tag } from "@/components/ui/Tag";
 import type { PublicCampaign } from "@/lib/content";
 
@@ -69,7 +69,7 @@ export function CampaignCard({ campaign, imageSizes, featured = false, className
           )}
 
           {campaign.progress_percent !== null && (
-            <ProgressBar value={campaign.progress_percent} label="de la meta" className="mt-5" />
+            <ProgressBar value={campaign.progress_percent} label={progressLabelOf(campaign)} className="mt-5" />
           )}
 
           <div className="mt-auto pt-6 @min-[70rem]/card:mt-0 @min-[70rem]/card:pt-7">

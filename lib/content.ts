@@ -38,7 +38,7 @@ export const CACHE_TAGS = {
 
 /** Columnas públicas de una campaña (nada interno). */
 const CAMPAIGN_COLUMNS =
-  "id, slug, title, tag, summary, body_md, cover_image_url, cover_image_alt, donation_url, donation_note, progress_percent, is_featured, sort_order, seo_title, seo_description, updated_at";
+  "id, slug, title, tag, summary, body_md, cover_image_url, cover_image_alt, donation_url, donation_note, progress_percent, progress_label, is_featured, sort_order, seo_title, seo_description, updated_at";
 
 export type PublicCampaign = {
   id: string;
@@ -52,6 +52,8 @@ export type PublicCampaign = {
   donation_url: string;
   donation_note: string | null;
   progress_percent: number | null;
+  /** Texto que acompaña al porcentaje («de las becas ya están cubiertas»). Vacío: «de la meta». */
+  progress_label: string | null;
   is_featured: boolean;
   sort_order: number;
   seo_title: string | null;

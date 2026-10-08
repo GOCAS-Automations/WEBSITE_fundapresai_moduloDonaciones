@@ -124,6 +124,7 @@ export const campaignSchema = z.object({
       .max(100, "El avance no puede ser mayor que 100.")
       .nullable(),
   ),
+  progress_label: optionalText("el texto del avance", 60),
   status: z.enum(CAMPAIGN_STATUSES, "Elija un estado: activa, borrador u oculta."),
   is_featured: checkbox,
   sort_order: z.coerce

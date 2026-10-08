@@ -1,5 +1,10 @@
 import { cn } from "./cn";
 
+/** Texto del avance de una campaña (panel: «Texto del avance»); vacío → «de la meta». */
+export function progressLabelOf(campaign: { progress_label?: string | null }): string {
+  return campaign.progress_label?.trim() || "de la meta";
+}
+
 type ProgressBarProps = {
   /** 0–100 */
   value: number;
