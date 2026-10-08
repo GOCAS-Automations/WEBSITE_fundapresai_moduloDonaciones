@@ -84,15 +84,15 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/og/**": ["./public/og/fundapresai.jpg", "./public/brand/logo-horizontal.png"],
   },
+  // CERO transformaciones de imágenes en Vercel (fase 6): ninguna imagen pasa
+  // por /_next/image. Las del bucket «media» usan sus variantes pre-generadas
+  // de 640, 1080 y 1600 px (lib/image-loader.ts); las demás van con
+  // `unoptimized` (lib/images.ts). Los anchos del srcset son los de las variantes.
   images: {
-    formats: ["image/avif", "image/webp"],
-    // Solo se optimizan las imágenes del bucket público de Supabase.
-    // Las URL externas se muestran con `unoptimized` (ver lib/images.ts).
-    remotePatterns: [
-      sbHost
-        ? { protocol: "https", hostname: sbHost, pathname: "/storage/v1/object/public/**" }
-        : { protocol: "https", hostname: "*.supabase.co", pathname: "/storage/v1/object/public/**" },
-    ],
+    loader: "custom",
+    loaderFile: "./lib/image-loader.ts",
+    deviceSizes: [640, 1080, 1600, 2048],
+    imageSizes: [],
   },
   async headers() {
     const rules = [

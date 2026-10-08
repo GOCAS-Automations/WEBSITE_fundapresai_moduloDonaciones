@@ -3,8 +3,12 @@
  * Las fotos de celular pesan 3–12 MB y el bucket acepta máximo 5 MB: aquí se
  * llevan a ~2000 px de lado mayor en WebP (o JPEG si el navegador no sabe
  * crear WebP, p. ej. Safari antiguo), normalmente 200–600 KB.
+ * Además crea las variantes de 640, 1080 y 1600 px de ancho con el mismo
+ * formato y calidad (lib/image-variants.ts): el sitio las usa en el srcset y
+ * así ninguna imagen pasa por el optimizador de Vercel.
  * Solo para componentes cliente.
  */
+import { IMAGE_VARIANT_WIDTHS } from "@/lib/image-variants";
 
 export class ImageProcessingError extends Error {}
 
@@ -16,12 +20,19 @@ const MAX_INPUT_BYTES = 40 * 1024 * 1024;
 /** Margen bajo el límite de 5 MB del bucket. */
 const MAX_OUTPUT_BYTES = 4.5 * 1024 * 1024;
 
+export type ImageVariant = {
+  /** Ancho nominal del nombre (<base>-w640…); la imagen nunca es más ancha que la original. */
+  width: (typeof IMAGE_VARIANT_WIDTHS)[number];
+  blob: Blob;
+};
+
 export type ProcessedImage = {
   blob: Blob;
   contentType: "image/webp" | "image/jpeg";
   extension: "webp" | "jpg";
   width: number;
   height: number;
+  variants: ImageVariant[];
 };
 
 type Options = {
@@ -88,6 +99,25 @@ function drawScaled(source: CanvasImageSource, sw: number, sh: number, tw: numbe
   return canvas;
 }
 
+/** Variantes de 640, 1080 y 1600 px de ancho (sin agrandar), mismo formato y calidad que la principal. */
+async function encodeVariants(
+  source: CanvasImageSource,
+  size: { sw: number; sh: number; tw: number; th: number },
+  type: "image/webp" | "image/jpeg",
+  quality: number,
+): Promise<ImageVariant[]> {
+  const out: ImageVariant[] = [];
+  for (const width of IMAGE_VARIANT_WIDTHS) {
+    const vw = Math.min(width, size.tw);
+    const vh = Math.max(1, Math.round((size.th * vw) / size.tw));
+    const canvas = drawScaled(source, size.sw, size.sh, vw, vh, type === "image/jpeg" ? "#ffffff" : undefined);
+    const blob = await toBlob(canvas, type, quality);
+    if (!blob || blob.type !== type) throw new ImageProcessingError("Su navegador no pudo preparar la imagen. Pruebe con otro navegador.");
+    out.push({ width, blob });
+  }
+  return out;
+}
+
 export async function processImage(file: File, { maxSide = 2000, format = "webp" }: Options = {}): Promise<ProcessedImage> {
   const looksLikeImage = READABLE.test(file.type) || isHeic(file) || (!file.type && /\.(jpe?g|png|webp|avif)$/i.test(file.name));
   if (!looksLikeImage) {
@@ -126,7 +156,8 @@ export async function processImage(file: File, { maxSide = 2000, format = "webp"
           // Safari antiguo devuelve PNG si no sabe crear WebP: se pasa a JPEG.
           if (!blob || blob.type !== "image/webp") break;
           if (blob.size <= MAX_OUTPUT_BYTES) {
-            return { blob, contentType: "image/webp", extension: "webp", width: tw, height: th };
+            const variants = await encodeVariants(source, { sw, sh, tw, th }, "image/webp", quality);
+            return { blob, contentType: "image/webp", extension: "webp", width: tw, height: th, variants };
           }
         }
       }
@@ -135,7 +166,8 @@ export async function processImage(file: File, { maxSide = 2000, format = "webp"
       for (const quality of [0.85, 0.72]) {
         const blob = await toBlob(canvas, "image/jpeg", quality);
         if (blob && blob.size <= MAX_OUTPUT_BYTES) {
-          return { blob, contentType: "image/jpeg", extension: "jpg", width: tw, height: th };
+          const variants = await encodeVariants(source, { sw, sh, tw, th }, "image/jpeg", quality);
+          return { blob, contentType: "image/jpeg", extension: "jpg", width: tw, height: th, variants };
         }
       }
       side = Math.round(side * 0.75);

@@ -5,7 +5,8 @@
  *
  * «Subir imagen»: la foto se reduce y comprime EN EL NAVEGADOR (~2000 px,
  * WebP) y se sube al bucket «media» con un nombre único y ordenado
- * (p. ej. campanas/<slug>-<timestamp>.webp).
+ * (p. ej. campanas/<slug>-<timestamp>.webp), junto con sus variantes de 640,
+ * 1080 y 1600 px (<…>-w640.webp, etc.; ver lib/image-variants.ts).
  * «Pegar enlace»: solo https; los enlaces de Google Drive se convierten a
  * vista directa; y se comprueba que la URL cargue una imagen antes de dejar
  * guardar (data-blocking bloquea el envío del formulario mientras tanto).
@@ -25,6 +26,7 @@ import {
   probeImageUrl,
   processImage,
 } from "@/lib/admin/image-processing";
+import { variantPath } from "@/lib/image-variants";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { slugify } from "@/lib/validations";
 import { inputClasses } from "./form";
@@ -114,12 +116,27 @@ export function ImageField({
       const base = slugify(fileBaseName) || "imagen";
       const path = `${folder}/${base}-${timestamp()}.${processed.extension}`;
       const supabase = createSupabaseBrowserClient();
-      const { error: uploadError } = await supabase.storage.from("media").upload(path, processed.blob, {
-        contentType: processed.contentType,
-        cacheControl: "31536000",
-        upsert: false,
-      });
-      if (uploadError) throw uploadError;
+      // La imagen y sus variantes de 640, 1080 y 1600 px (el sitio las usa en el srcset).
+      const files = [
+        { path, blob: processed.blob },
+        ...processed.variants.map((v) => ({ path: variantPath(path, v.width), blob: v.blob })),
+      ];
+      const results = await Promise.all(
+        files.map((file) =>
+          supabase.storage.from("media").upload(file.path, file.blob, {
+            contentType: processed.contentType,
+            cacheControl: "31536000",
+            upsert: false,
+          }),
+        ),
+      );
+      const uploadError = results.find((r) => r.error)?.error;
+      if (uploadError) {
+        // Nada a medias: si falló alguna, se borran las que sí subieron.
+        const done = files.filter((_, i) => !results[i].error).map((file) => file.path);
+        if (done.length) await supabase.storage.from("media").remove(done);
+        throw uploadError;
+      }
       const publicUrl = supabase.storage.from("media").getPublicUrl(path).data.publicUrl;
       commit(publicUrl, blobUrl.current);
       setLinkText("");

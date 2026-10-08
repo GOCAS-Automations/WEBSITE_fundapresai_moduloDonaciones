@@ -1,18 +1,15 @@
 /**
- * Política de imágenes (plan §9): las del bucket «media» de Supabase pasan por
- * el optimizador de next/image (remotePatterns en next.config.ts). Las URL
- * externas que pegue el panel se muestran con `unoptimized`: así nadie puede
- * usar /_next/image como proxy abierto ni gastar la cuota de optimización de
- * Vercel Hobby con imágenes de terceros.
+ * Política de imágenes: CERO transformaciones en Vercel (decisión de Cesar,
+ * fase 6). Nada pasa por /_next/image:
+ * - Las del bucket «media» de Supabase usan el loader propio
+ *   (lib/image-loader.ts), que arma el `srcset` con sus variantes
+ *   pre-generadas de 640, 1080 y 1600 px (lib/image-variants.ts).
+ * - Las demás (URL externas pegadas en el panel, archivos de /public) se
+ *   muestran con `unoptimized`: el navegador las pide tal cual.
  */
-export function isSupabaseStorageUrl(src: string): boolean {
-  const base = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim().replace(/\/+$/, "");
-  if (!base) return false;
-  return src.startsWith(`${base}/storage/v1/object/public/`);
-}
+import { hasVariants } from "./image-variants";
 
-/** true si la imagen debe servirse sin optimizar (externa). Las rutas locales sí se optimizan. */
+/** true si la imagen se muestra tal cual (sin srcset): todo lo que no sea una original del bucket. */
 export function shouldSkipOptimization(src: string): boolean {
-  if (src.startsWith("/")) return false;
-  return !isSupabaseStorageUrl(src);
+  return !hasVariants(src);
 }
