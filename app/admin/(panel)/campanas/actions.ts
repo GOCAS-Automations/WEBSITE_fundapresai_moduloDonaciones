@@ -12,6 +12,7 @@ import { z } from "zod";
 import { ACCESS_MESSAGES, fail, ok, VALIDATION_MESSAGE, type ActionState } from "@/lib/admin/action-state";
 import { humanizeError } from "@/lib/admin/errors";
 import { formDataToObject } from "@/lib/admin/form-data";
+import { removeOrphanedImages } from "@/lib/admin/media-cleanup";
 import { revalidateCampaign } from "@/lib/revalidate";
 import { requireAdmin } from "@/lib/supabase/server";
 import { CAMPAIGN_STATUS_LABELS, campaignSchema, fieldErrors } from "@/lib/validations";
@@ -33,10 +34,10 @@ export async function saveCampaign(campaignId: string | null, _prev: ActionState
   const { supabase } = auth;
 
   let id = campaignId;
-  let previous: { slug: string; is_featured: boolean } | null = null;
+  let previous: { slug: string; is_featured: boolean; cover_image_url: string | null } | null = null;
 
   if (id) {
-    const { data, error } = await supabase.from("campaigns").select("slug, is_featured").eq("id", id).maybeSingle();
+    const { data, error } = await supabase.from("campaigns").select("slug, is_featured, cover_image_url").eq("id", id).maybeSingle();
     if (error) return fail(humanizeError(error, "leer campaña"));
     if (!data) return fail("No encontramos esta campaña: puede que la hayan eliminado.");
     previous = data;
@@ -77,6 +78,11 @@ export async function saveCampaign(campaignId: string | null, _prev: ActionState
   }
 
   revalidateCampaign(fields.slug, previous?.slug);
+
+  // Portada reemplazada: si era de nuestro bucket y ya nadie la usa, se borra (no bloquea el guardado).
+  if (previous && previous.cover_image_url !== fields.cover_image_url) {
+    await removeOrphanedImages(supabase, [previous.cover_image_url]);
+  }
 
   if (!campaignId) redirect(`/admin/campanas?creada=${encodeURIComponent(fields.slug)}`);
 
@@ -169,11 +175,12 @@ export async function deleteCampaign(id: string): Promise<ActionState> {
   if (!idSchema.safeParse(id).success) return fail("Esa campaña no existe.");
   const { supabase } = auth;
 
-  const { data, error } = await supabase.from("campaigns").delete().eq("id", id).select("slug, title");
+  const { data, error } = await supabase.from("campaigns").delete().eq("id", id).select("slug, title, cover_image_url");
   if (error) return fail(humanizeError(error, "eliminar"));
   if (!data?.length) return fail("No se pudo eliminar: la campaña ya no existe o su cuenta no tiene permiso.");
 
   revalidateCampaign(data[0].slug);
+  await removeOrphanedImages(supabase, [data[0].cover_image_url]);
   refresh();
   return ok(`Se eliminó la campaña «${data[0].title}».`);
 }

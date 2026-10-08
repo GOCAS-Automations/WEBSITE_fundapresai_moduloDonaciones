@@ -9,6 +9,7 @@ import { refresh } from "next/cache";
 import { ACCESS_MESSAGES, fail, ok, VALIDATION_MESSAGE, type ActionState } from "@/lib/admin/action-state";
 import { humanizeError } from "@/lib/admin/errors";
 import { dropEmptyRows, formDataToObject } from "@/lib/admin/form-data";
+import { blockImage, removeOrphanedImages } from "@/lib/admin/media-cleanup";
 import { revalidateSiteSettings } from "@/lib/revalidate";
 import type { Json, TablesUpdate } from "@/lib/supabase/database.types";
 import { requireAdmin } from "@/lib/supabase/server";
@@ -25,6 +26,13 @@ const BLOCK_LABELS: Record<SiteBlockKey, string> = {
   socials: "Redes sociales",
   seo: "Buscadores y redes",
   privacy: "Política de privacidad",
+};
+
+/** Bloques con imagen propia (las demás no suben imágenes). */
+const IMAGE_KEYS: Partial<Record<SiteBlockKey, "image_url" | "og_image_url">> = {
+  hero: "image_url",
+  about: "image_url",
+  seo: "og_image_url",
 };
 
 function isBlockKey(value: unknown): value is SiteBlockKey {
@@ -51,12 +59,23 @@ export async function saveSiteBlock(block: SiteBlockKey, _prev: ActionState, for
     update = { [block]: parsed.data as Json };
   }
 
+  // Imagen anterior del bloque (portada, «Quiénes somos» o redes), para limpiar el bucket si se reemplaza.
+  const imageKey = IMAGE_KEYS[block];
+  let previousImage: unknown = null;
+  if (imageKey && block !== "privacy") {
+    const { data: prev } = await auth.supabase.from("site_settings").select(block).eq("id", 1).maybeSingle();
+    previousImage = blockImage((prev as Record<string, unknown> | null)?.[block], imageKey);
+  }
+
   const { data, error } = await auth.supabase.from("site_settings").update(update).eq("id", 1).select("id");
   if (error) return fail(humanizeError(error, `guardar ${block}`));
   // RLS no da error si no deja escribir: simplemente no actualiza ninguna fila.
   if (!data?.length) return fail(ACCESS_MESSAGES["no-admin"]);
 
   revalidateSiteSettings();
+  if (imageKey && block !== "privacy" && previousImage !== blockImage(update[block], imageKey)) {
+    await removeOrphanedImages(auth.supabase, [previousImage]);
+  }
   refresh();
   return ok(`Se guardó «${BLOCK_LABELS[block]}». Los cambios ya están publicados en el sitio.`);
 }
