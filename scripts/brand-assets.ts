@@ -1,8 +1,9 @@
 /**
- * Genera los logos transparentes, los íconos y la portada provisional a partir
+ * Genera los logos transparentes, los íconos del manifest y la portada provisional a partir
  * del logo VECTORIAL que viene dentro de «Identidad visual Fundapresai.pdf».
  *
- * Uso:  npm run brand:assets
+ * Uso:  npm run brand:assets   (y después npm run brand:share: favicon, icon,
+ *       apple-icon, logo para Google e imagen para redes)
  * Requiere `pdftocairo` (Poppler) en el PATH. Git for Windows lo incluye.
  * Ruta del PDF configurable con BRAND_PDF (por defecto ../Insumos/...).
  *
@@ -144,30 +145,6 @@ async function square(img: Buffer, size: number, fill: number, background?: stri
     .toBuffer();
 }
 
-/** ICO con PNG embebidos (válido en todos los navegadores actuales). */
-function buildIco(pngs: { size: number; data: Buffer }[]) {
-  const header = Buffer.alloc(6);
-  header.writeUInt16LE(0, 0);
-  header.writeUInt16LE(1, 2);
-  header.writeUInt16LE(pngs.length, 4);
-  const entries: Buffer[] = [];
-  let offset = 6 + 16 * pngs.length;
-  for (const { size, data } of pngs) {
-    const e = Buffer.alloc(16);
-    e.writeUInt8(size >= 256 ? 0 : size, 0);
-    e.writeUInt8(size >= 256 ? 0 : size, 1);
-    e.writeUInt8(0, 2);
-    e.writeUInt8(0, 3);
-    e.writeUInt16LE(1, 4);
-    e.writeUInt16LE(32, 6);
-    e.writeUInt32LE(data.length, 8);
-    e.writeUInt32LE(offset, 12);
-    offset += data.length;
-    entries.push(e);
-  }
-  return Buffer.concat([header, ...entries, ...pngs.map((p) => p.data)]);
-}
-
 async function main() {
   const tmp = mkdtempSync(path.join(tmpdir(), "fundapresai-brand-"));
   try {
@@ -221,17 +198,12 @@ async function main() {
       .then((b) => sharp(b).resize({ height: 192 }).png({ compressionLevel: 9 }).toFile(out("public/brand/logo-horizontal.png")));
 
     // Íconos.
-    writeFileSync(out("app/icon.png"), await square(symbol, 512, 0.92));
-    writeFileSync(out("app/apple-icon.png"), await square(symbol, 180, 0.72, "#ffffff"));
+    // app/favicon.ico, app/icon.png y app/apple-icon.png los genera
+    // scripts/brand-share.ts (npm run brand:share) desde el símbolo vectorial.
     writeFileSync(out("public/icons/icon-192.png"), await square(symbol, 192, 0.9));
     writeFileSync(out("public/icons/icon-512.png"), await square(symbol, 512, 0.9));
     // Maskable: el símbolo dentro de la zona segura (círculo del 80 %).
     writeFileSync(out("public/icons/icon-maskable-512.png"), await square(symbol, 512, 0.58, "#ffffff"));
-    const icoSizes = [16, 32, 48];
-    const icoPngs = await Promise.all(
-      icoSizes.map(async (size) => ({ size, data: await square(symbol, size, size <= 16 ? 1 : 0.94) })),
-    );
-    writeFileSync(out("app/favicon.ico"), buildIco(icoPngs));
 
     // Portada provisional de «Colegio de Valores Humanos» (slug beca-estudiantes; 16:10, sin texto).
     const W = 1600, Hc = 1000;

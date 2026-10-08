@@ -68,6 +68,18 @@ const nextConfig: NextConfig = {
       },
     },
   },
+  // Trabajadores del build según la memoria libre (el equipo de desarrollo
+  // tiene poca RAM: con 11 trabajadores el build se quedaba sin memoria).
+  // NEXT_BUILD_CPUS=1 los limita a mano. En Vercel no cambia nada visible.
+  experimental: {
+    memoryBasedWorkersCount: true,
+    ...(Number(process.env.NEXT_BUILD_CPUS) > 0 ? { cpus: Number(process.env.NEXT_BUILD_CPUS) } : {}),
+  },
+  // lib/og.ts lee estos archivos de public/ al armar la imagen para redes de
+  // cada campaña (insignia con el logo y respaldo de marca).
+  outputFileTracingIncludes: {
+    "/og/**": ["./public/og/fundapresai.jpg", "./public/brand/logo-horizontal.png"],
+  },
   images: {
     formats: ["image/avif", "image/webp"],
     // Solo se optimizan las imágenes del bucket público de Supabase.
