@@ -19,7 +19,7 @@ cp .env.example .env.local   # y completar los valores
 npm run dev                  # http://localhost:3000
 ```
 
-Node 22 o superior. `npm run build` y `npm run lint` deben pasar sin errores. El build no depende de que Supabase esté configurado: sin credenciales, las lecturas devuelven vacío.
+Node 22 o superior. `npm run build` y `npm run lint` deben pasar sin errores. El build no depende de que Supabase esté configurado: sin credenciales, las lecturas devuelven vacío. En un equipo con poca RAM: `NEXT_BUILD_CPUS=2 npm run build` (limita los trabajadores del build; además `memoryBasedWorkersCount` los ajusta a la memoria libre).
 
 ## Variables de entorno
 
@@ -27,7 +27,8 @@ Node 22 o superior. `npm run build` y `npm run lint` deben pasar sin errores. El
 |---|---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | Vercel + local | URL del proyecto Supabase |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Vercel + local | Clave pública (`anon` JWT o `sb_publishable_...`). El sitio funciona con ella + RLS |
-| `SUPABASE_SERVICE_ROLE_KEY` | Vercel + local | Clave secreta (`service_role` o `sb_secret_...`). **Solo servidor**: en la app la usa únicamente `/api/heartbeat`; en local, los scripts |
+| `SUPABASE_SERVICE_ROLE_KEY` | Vercel + local | Clave secreta (`service_role` o `sb_secret_...`). **Solo servidor**: en la app la usan únicamente `/api/heartbeat` y la gestión de usuarios del panel (`lib/admin/accounts.ts`, siempre **después** de verificar con la sesión que quien llama es administrador general; ESLint impide importarla en otro archivo); en local, los scripts |
+| `PASSWORD_RECOVERY_ENABLED` | opcional | **Apagada** si no existe. `true` reactiva «¿Olvidó su contraseña?» por correo (requiere SMTP; ver «Cuentas del panel»). Solo servidor; cambiarla exige volver a desplegar |
 | `NEXT_PUBLIC_SITE_URL` | Vercel + local | Dominio canónico, sin barra final |
 | `NEXT_PUBLIC_ALLOW_INDEXING` | Vercel + local | `false` en la demo (todo con `noindex`); `true` solo con el subdominio definitivo |
 | `CRON_SECRET` | Vercel + GitHub | Secreto del latido (largo y aleatorio) |
@@ -44,10 +45,12 @@ Node 22 o superior. `npm run build` y `npm run lint` deben pasar sin errores. El
 | `npm run db:seed` | Migraciones pendientes + `supabase/seed.sql` (idempotente: no pisa lo editado en el panel) |
 | `npm run db:types` | Regenera `lib/supabase/database.types.ts` |
 | `npm run seed:images` | Sube las portadas de `supabase/seed-images/` al bucket `media` y actualiza `cover_image_url` (`-- --force` reemplaza portadas propias) |
-| `npm run auth:configure` | Registro desactivado, `site_url`, redirecciones y (si hay SMTP) correos en español. `-- --site-url https://...` al publicar |
+| `npm run auth:configure` | Registro desactivado, cuentas confirmadas sin correo (`mailer_autoconfirm`), contraseñas de 10+ caracteres, cambio de contraseña sin código por correo, `site_url`, redirecciones y (si hay SMTP) correos en español. Hoy: `-- --site-url https://fundapresai-donaciones.vercel.app` (las plantillas las rechaza la Management API sin SMTP propio: es esperado) |
+| `npm run admin:super` | Crea (o confirma, sin duplicar ni cambiar la contraseña ni el nombre) la cuenta de **administrador general** de Cesar; la contraseña nueva (20 caracteres, sin ambiguos) va **solo** a `.credenciales-admin.local` (ignorado por git; el script lo verifica con `git check-ignore` y nunca la imprime). `-- --reset-password` le pone una nueva; `-- --email x --name "y"` para otra cuenta |
 | `npm run test:rls` | Prueba de seguridad con usuario anónimo (lectura, escritura, Storage, funciones) |
-| `npm run test:admin` | Prueba de punta a punta del panel contra `localhost` (con `npm run build && npm run start` corriendo): crea un admin y un usuario sin permisos **temporales**, prueba login, edición del hero, imagen sin descripción rechazada, CRUD de campañas con imagen subida y por URL (la reemplazada se borra del bucket), detalle de la campaña nueva, editar resumen y dirección (la vieja da 404), ocultar (404 y fuera del sitemap), eliminar con modal, reordenar, destacada, recuperación de contraseña y RLS; toma capturas en `../Capturas/fase4/` y corre chequeos + axe. Al final borra todo lo de prueba y deja `campaigns` y `site_settings` idénticos al respaldo más reciente (`npm run backup` antes; `-- --backup <dir>` para elegir otro, `-- --no-shots` sin capturas). Requiere `SUPABASE_DB_URL` para restaurar `updated_at` |
-| `npm run check:seo` | Contra `localhost` (con el sitio corriendo): title, description, canonical, Open Graph y Twitter con URL absolutas (y que la imagen cargue), noindex según `NEXT_PUBLIC_ALLOW_INDEXING` y siempre en `/admin`, JSON-LD (NGO y WebPage + DonateAction), `sitemap.xml`, `robots.txt`, favicon, apple-touch-icon y manifest |
+| `npm run test:admin` | Prueba de punta a punta del panel contra `localhost` (con `npm run build && npm run start` corriendo): crea un admin y un usuario sin permisos **temporales**, prueba login, edición del hero, imagen sin descripción rechazada, CRUD de campañas con imagen subida y por URL (la reemplazada se borra del bucket), detalle de la campaña nueva, editar resumen y dirección (la vieja da 404), ocultar (404 y fuera del sitemap), eliminar con modal, reordenar, destacada, recuperación de contraseña (apagada: rutas al login) y RLS. **Fase 5**, con un administrador general temporal: crea un admin en «Usuarios» (contraseña generada, mostrada una vez y copiada), le restablece la contraseña, el admin entra con la nueva, no ve «Usuarios» y sus Server Actions de usuarios fallan (y RLS no le deja tocar `is_super`), cambia su contraseña en «Mi cuenta» (con la actual mala falla) y su nombre, y el administrador general le quita el acceso con el modal; la guarda «último administrador general» se prueba en una transacción deshecha. Capturas en `../Capturas/fase4/` y `../Capturas/fase5/` (Usuarios, Mi cuenta y login) y chequeos + axe. Nunca toca la cuenta real de Cesar. Al final borra todo lo de prueba y deja `campaigns` y `site_settings` idénticos al respaldo más reciente (`npm run backup` antes; `-- --backup <dir>` para elegir otro, `-- --no-shots` sin capturas). Requiere `SUPABASE_DB_URL` para restaurar `updated_at` |
+| `npm run check:seo` | Contra `localhost` (con el sitio corriendo): title, description, canonical, Open Graph y Twitter con URL absolutas, imagen OG de 1200×630 en JPEG (la de marca < 300 KB) con width/height/type/alt, noindex según `NEXT_PUBLIC_ALLOW_INDEXING` y siempre en `/admin`, JSON-LD (WebSite, NGO con logo `ImageObject` PNG ≥ 112 px opaco, y WebPage + DonateAction), `sitemap.xml`, `robots.txt`, `favicon.ico` real con 16/32/48 px, `icon.png` múltiplo de 48, `apple-touch-icon` 180×180 opaco y manifest (192, 512 y maskable) |
+| `npm run brand:share` | Regenera la imagen para redes `public/og/fundapresai.jpg` (HTML con Poppins fotografiado con Chrome), `public/brand/logo-google.png`, `app/favicon.ico`, `app/icon.png` y `app/apple-icon.png` desde el símbolo vectorial |
 | `npm run backup` | Exporta `campaigns` y `site_settings` a `backups/` (ignorado por git) |
 | `npm run covers:prepare` | Recorta las portadas originales a 16:10 |
 | `npm run brand:assets` | Regenera logos, íconos y la portada provisional (requiere `pdftocairo`) |
@@ -60,25 +63,28 @@ Migraciones en `supabase/migrations/` (no se editan una vez aplicadas: se crea u
 
 - `campaigns`: lectura pública solo de `status = 'active'`; todo lo demás solo administradores.
 - `site_settings`: lectura pública; edición solo administradores.
-- `admins`: cada usuario ve solo su fila; sin escritura por la API.
+- `admins`: cada usuario ve solo su fila; el **administrador general** (`is_super`) las ve todas. **Nadie escribe `admins` con la clave pública** (sin privilegios de escritura): las escrituras las hace el servidor con la clave secreta. `is_super` solo lo cambia `service_role` o SQL directo (trigger `admins_guard_is_super`), y un trigger impide quedarse sin administrador general (`admins_guard_last_super`, también ante el borrado en cascada desde Auth).
 - `heartbeat`: sin acceso por la API; se escribe con `record_heartbeat()` (solo `service_role`).
 - Storage `media`: público para leer por URL; subir, reemplazar y borrar solo administradores (5 MB; JPEG, PNG, WebP, AVIF).
+- Funciones: `is_admin()` e `is_super_admin()` (`security definer`, `search_path` vacío; solo `authenticated` y `service_role`).
 
-### Crear un usuario administrador
+### Cuentas del panel: administrador general, sin correos
 
-El registro público está desactivado. Dos pasos:
+Decisión de Cesar (fase 5): **una cuenta de administrador general** (la suya) gestiona las demás desde el panel. **No hay SMTP**, así que Supabase no envía correos: ni de confirmación ni de recuperación.
 
-1. **Dashboard de Supabase → Authentication → Users → Add user → Create new user**: correo y una contraseña provisional, con **«Auto Confirm User»** marcado.
-2. **SQL Editor** (el nombre se usa en el saludo del panel: «Hola, Angela»):
+- **Cuenta de Cesar:** `cesarxemiliox@gmail.com`, «Cesar Castaño · GOCAS», `is_super = true`. Se creó con `npm run admin:super`; la contraseña inicial está **solo** en `website/.credenciales-admin.local` (ignorado por git). Cámbiela en **Mi cuenta** al primer ingreso y borre el archivo.
+- **Usuarios** (`/admin/usuarios`, solo el administrador general): listado (nombre, correo, insignia «Administrador general», creación y último ingreso), **crear administrador** (nombre, correo y contraseña, con «Generar contraseña segura»; la cuenta nace confirmada), **restablecer la contraseña** de otra cuenta, **editar nombre** y **quitar acceso** (borra el usuario de Auth y su fila en `admins`, con el modal propio). No puede quitarse a sí mismo ni quitar al último administrador general. Toda contraseña nueva se muestra **una sola vez** en el navegador de quien la creó, con «Copiar»; el servidor nunca la devuelve ni la guarda a la vista. Se entrega a la persona en privado.
+- **Mi cuenta** (`/admin/cuenta`, todos los administradores; enlace en la barra superior): cambiar la contraseña pidiendo la actual (se verifica con `signInWithPassword` en un cliente aparte, sin tocar la sesión, y luego `updateUser`; mínimo 10 caracteres con letras y números) y cambiar su nombre. En celular, «Cerrar sesión» está aquí.
+- **Si alguien olvida su contraseña:** el login dice «¿Olvidó su contraseña? Pídale al administrador general que se la restablezca.» y el administrador general lo hace en «Usuarios». Si Cesar olvida la suya: `npm run admin:super -- --reset-password` (en local, con la clave secreta) le asigna una aleatoria nueva y la escribe en `.credenciales-admin.local`; o la restablece otro administrador general.
+- **Cómo se protege:** cada Server Action de usuarios llama primero a `requireSuperAdmin()` (`lib/admin/accounts.ts`): `is_admin()` + `is_super_admin()` **con la sesión del usuario y RLS**; solo entonces crea el cliente con la clave secreta y usa `auth.admin`. La página «Usuarios» hace lo mismo antes de listar. Un administrador normal no ve el mosaico y, si entra a la dirección, ve un aviso sin formularios; si fuerza la acción, el servidor responde «Solo el administrador general…». La prueba `npm run test:admin` lo verifica.
+- **Otro administrador general:** por SQL, `update public.admins set is_super = true where user_id = '…';` (el panel no lo ofrece a propósito).
 
-```sql
-insert into public.admins (user_id, name)
-select id, 'Angela María Ramírez' from auth.users where email = 'correo@ejemplo.org';
-```
+**Activar la recuperación por correo en el futuro** (el código sigue ahí, inactivo):
 
-Para quitar el acceso: `delete from public.admins where user_id = (select id from auth.users where email = 'correo@ejemplo.org');` (el usuario sigue existiendo, pero el panel le muestra «Su cuenta no tiene acceso» y RLS le bloquea toda escritura). Borrar el usuario en Authentication también borra su fila en `admins`.
-
-**Correo de recuperación:** sin SMTP propio, Supabase solo envía correos a los miembros del equipo del proyecto y no deja traducir las plantillas. Para que «¿Olvidó su contraseña?» le llegue a Angela, configure un SMTP en **Authentication → SMTP Settings** (p. ej. Resend o Brevo, plan gratuito) y vuelva a correr `npm run auth:configure`. Mientras tanto, si Angela olvida su contraseña, Cesar puede asignarle una nueva con la API de administración (`supabase.auth.admin.updateUserById(id, { password })`, con la clave secreta) o borrar el usuario y crearlo de nuevo (y volver a agregarlo a `admins`).
+1. Configure un SMTP en **Supabase → Authentication → SMTP Settings** (p. ej. Resend o Brevo, plan gratuito).
+2. Corra `npm run auth:configure -- --site-url https://<dominio>` para instalar las plantillas en español (con `token_hash`, funcionan en cualquier dispositivo).
+3. En Vercel agregue `PASSWORD_RECOVERY_ENABLED=true` y vuelva a desplegar. Vuelven el enlace «¿Olvidó su contraseña?» del login, `/admin/recuperar`, `/admin/restablecer` y `/auth/confirm` (con la variable apagada, esas rutas redirigen al login y la acción de nueva contraseña se niega).
+4. Corra `npm run test:admin` con el sitio arrancado con la variable: la prueba detecta que está activa y ejecuta el flujo completo de recuperación.
 
 ## Sitio público
 
@@ -95,28 +101,31 @@ Para quitar el acceso: `delete from public.admins where user_id = (select id fro
 ## SEO
 
 - **Metadata por página** (`lib/seo.ts` → `buildMetadata`): title, description, canonical, Open Graph y Twitter (`summary_large_image`), todo absoluto con `metadataBase` = `NEXT_PUBLIC_SITE_URL`. Landing: título, descripción e imagen de «Buscadores y redes». Campaña: `seo_title`/`seo_description` o, si están vacíos, `title`/`summary` (con « · Fundapresai»).
-- **Imagen para redes:** la de cada campaña es **su portada** convertida a JPEG 1200×630 en `/og/campanas/<slug>.jpg?v=<versión>` (las portadas se suben en WebP y WhatsApp no siempre lo muestra; `v` cambia con cada edición para que WhatsApp no muestre una vieja). La landing usa la imagen de «Buscadores y redes» o, si está vacía, una imagen de marca generada (`/og/fundapresai.jpg`: degradado, símbolo y logo con el lema). Se generan con `sharp` (dependencia opcional de Next) en funciones `"use cache"` (`lib/og.ts`).
+- **Imagen para redes de la landing:** la de «Buscadores y redes» o, si está vacía, la **imagen de marca estática** `public/og/fundapresai.jpg` (1200×630, JPEG de ~100 KB, URL absoluta y estable): tarjeta blanca con el logo vertical y el lema «Inspirando vidas en valores», el título del hero «¿Se siente inspirado? Su aporte transformará vidas.», fondo morado de la marca con el motivo de hojas y la franja rosa/periwinkle/terracota. Se regenera con `npm run brand:share`. Metas: `og:image` (+ `width`, `height`, `type`, `alt`), `og:site_name` «Fundapresai», `og:locale` `es_CO` y `twitter:card` `summary_large_image`. Copia para revisar en `../Capturas/fase5/og-landing-fundapresai.jpg`.
+- **Imagen para redes de cada campaña:** `/og/campanas/<slug>.jpg?v=<versión>` (JPEG 1200×630): la portada **completa** (sin recortar, porque varias traen texto o el logo cerca del borde) sobre un fondo desenfocado de sí misma, con la insignia blanca del logo de Fundapresai abajo a la izquierda. Las portadas se suben en WebP y WhatsApp no siempre lo muestra; `v` cambia con cada edición para que WhatsApp no muestre una vieja. Se genera con `sharp` en una función `"use cache"` (`lib/og.ts`); los archivos de `public/` que usa van en `outputFileTracingIncludes` (`next.config.ts`).
 - **noindex:** global (meta + cabecera `X-Robots-Tag`) mientras `NEXT_PUBLIC_ALLOW_INDEXING` no sea `true`; `/admin` siempre. **`robots.txt`:** `/admin` y `/api/` bloqueados; en la demo, todo bloqueado para buscadores, pero se permite a los lectores de vista previa (WhatsApp, Facebook, X, LinkedIn, Telegram, Slack) para que los enlaces compartidos muestren imagen y título (no indexan, y cada página sigue con noindex).
 - **`sitemap.xml`** dinámico: landing, campañas **activas** (con su portada) y privacidad; se invalida con las mismas etiquetas.
-- **JSON-LD:** `NGO` en la landing (nombre, logo, url, contacto, dirección y `sameAs` de las redes) y `WebPage` en cada campaña con `potentialAction` `DonateAction` → `donation_url`. `npm run check:seo` lo valida.
-- Favicon, `apple-icon` y `manifest` (en `app/`) los enlaza Next solo.
+- **JSON-LD:** en la landing, `WebSite` (`name` «Fundapresai», `alternateName` «Fundación Fundapresai», `url`, `inLanguage` `es-CO`: Google lo usa para el **nombre del sitio** en los resultados) y `NGO` (`name`, `alternateName`, `url`, **`logo` como `ImageObject`** → `public/brand/logo-google.png`, PNG 512×512 sobre blanco, contacto, dirección y `sameAs` de las redes); en cada campaña, `WebPage` con `potentialAction` `DonateAction` → `donation_url`. `npm run check:seo` lo valida.
+- **Íconos** (en `app/`, Next los enlaza solo; `npm run brand:share` los genera desde el símbolo vectorial): `favicon.ico` con el **símbolo de Fundapresai** en 16, 32 y 48 px (el de 16 px con las puntas recortadas para que se lea), `icon.png` de 192×192 (Google exige un favicon cuadrado múltiplo de 48 px), `apple-icon.png` de 180×180 con **fondo blanco sólido** (iOS pone negro lo transparente) y `manifest.webmanifest` con íconos de 192 y 512 px y uno `maskable` (símbolo dentro de la zona segura), `theme_color` `#5f2c85` y `background_color`. Vista ampliada en `../Capturas/fase5/favicon-ampliado.png`.
 - **Lighthouse móvil** (localhost, build con `NEXT_PUBLIC_ALLOW_INDEXING=true`, 2026-10-07): `/` 92 · 100 · 100 · 100 y `/campanas/unidos-por-su-educacion` 94 · 100 · 100 · 100 (rendimiento · accesibilidad · buenas prácticas · SEO). Para medir SEO sin el noindex de la demo: `NEXT_PUBLIC_ALLOW_INDEXING=true npm run build` y `NEXT_PUBLIC_ALLOW_INDEXING=true npm run start` (la cabecera se calcula al arrancar), sin editar `.env.local`; luego volver a compilar normal.
 
 ## Panel administrativo (`/admin`)
 
 | Ruta | Qué hace |
 |---|---|
-| `/admin/login` | Entrar con correo y contraseña (página estática; `?next=` vuelve a la ruta pedida) |
-| `/admin/recuperar` | «¿Olvidó su contraseña?»: `resetPasswordForEmail` desde el navegador |
-| `/auth/confirm` | Route handler de los enlaces de Auth: `token_hash` + `verifyOtp` (plantillas propias) o `code` + `exchangeCodeForSession` (PKCE, plantilla por defecto) |
-| `/admin/restablecer` | Definir la nueva contraseña (con la sesión que abre el enlace) |
-| `/admin` | Inicio: «Editar sitio», «Campañas», «Ver sitio» y estado del latido (aviso ámbar si pasan más de 72 h) |
+| `/admin/login` | Entrar con correo y contraseña (página estática; `?next=` vuelve a la ruta pedida). Sin recuperación por correo: «Pídale al administrador general que se la restablezca» |
+| `/admin/recuperar` | **Inactiva** (redirige al login) salvo `PASSWORD_RECOVERY_ENABLED=true`: «¿Olvidó su contraseña?» con `resetPasswordForEmail` desde el navegador |
+| `/auth/confirm` | **Inactiva** igual. Route handler de los enlaces de Auth: `token_hash` + `verifyOtp` (plantillas propias) o `code` + `exchangeCodeForSession` (PKCE, plantilla por defecto) |
+| `/admin/restablecer` | **Inactiva** igual. Definir la nueva contraseña (con la sesión que abre el enlace) |
+| `/admin` | Inicio: «Editar sitio», «Campañas», «Usuarios» (solo administrador general), «Mi cuenta», «Ver sitio» y estado del latido (aviso ámbar si pasan más de 72 h) |
+| `/admin/usuarios` | Solo administrador general: cuentas del panel (ver «Cuentas del panel») |
+| `/admin/cuenta` | Mi cuenta: contraseña (pide la actual) y nombre |
 | `/admin/contenido` | Un formulario por bloque de `site_settings`, cada uno con su «Guardar» |
 | `/admin/campanas`, `/nueva`, `/[id]/editar` | Listado (ordenar ↑ ↓, ocultar/mostrar, eliminar con modal), crear y editar |
 
-**Protección doble:** `proxy.ts` refresca la sesión (`@supabase/ssr`) y manda a `/admin/login` si no hay sesión (login, recuperar y restablecer quedan libres). Además, el layout del panel y **cada Server Action** verifican en el servidor `is_admin()` (`requireAdmin()` en `lib/supabase/server.ts`); un usuario autenticado que no esté en `admins` ve un aviso amable y ningún formulario, y RLS le bloquea cualquier escritura igual. Las acciones revalidan el sitio con `lib/revalidate.ts`, así que los cambios se ven en `/` al recargar.
+**Protección doble:** `proxy.ts` refresca la sesión (`@supabase/ssr`) y manda a `/admin/login` si no hay sesión (login, recuperar y restablecer quedan libres; las dos últimas van al login mientras la recuperación esté apagada). Además, el layout del panel y **cada Server Action** verifican en el servidor `is_admin()` (`requireAdmin()` en `lib/supabase/server.ts`); un usuario autenticado que no esté en `admins` ve un aviso amable y ningún formulario, y RLS le bloquea cualquier escritura igual. Las acciones revalidan el sitio con `lib/revalidate.ts`, así que los cambios se ven en `/` al recargar.
 
-**Recuperar contraseña:** el formulario pide el correo desde el navegador (así queda la cookie PKCE) con `redirectTo = <origen>/auth/confirm?next=/admin/restablecer`. Con la plantilla por defecto de Supabase el enlace trae `?code=` y **solo funciona en el mismo navegador** donde se pidió (si no, se le pide uno nuevo con ese aviso). Con SMTP propio, `npm run auth:configure` instala plantillas en español con `token_hash`, que funcionan en cualquier dispositivo. El flujo `token_hash` está probado de punta a punta (`npm run test:admin`).
+**Recuperar contraseña (inactivo sin `PASSWORD_RECOVERY_ENABLED=true`):** el formulario pide el correo desde el navegador (así queda la cookie PKCE) con `redirectTo = <origen>/auth/confirm?next=/admin/restablecer`. Con la plantilla por defecto de Supabase el enlace trae `?code=` y **solo funciona en el mismo navegador** donde se pidió (si no, se le pide uno nuevo con ese aviso). Con SMTP propio, `npm run auth:configure` instala plantillas en español con `token_hash`, que funcionan en cualquier dispositivo. El flujo `token_hash` está probado de punta a punta (`npm run test:admin`).
 
 **Estados de campaña:** Activa (se ve), Borrador y Oculta (no se ven). «Publicar» o «Mostrar» desde el listado exige que la campaña esté completa (mismo esquema Zod). La destacada es una sola: `set_featured_campaign()` desmarca las demás en una transacción. En `/` la destacada siempre va primero; el resto sigue el orden del listado.
 
@@ -162,7 +171,7 @@ curl -X POST "$SUPABASE_URL/rest/v1/campaigns" \
 
 ## Imágenes y logos
 
-- **Logos:** Cesar indicó que el logo solo existe en JPEG, pero `Insumos/Identidad visual Fundapresai.pdf` trae el **logo vectorial** (exportado de Illustrator). `npm run brand:assets` lo renderiza a 1200 dpi con fondo transparente real (sin halos), corrige los colores a los hex del manual y genera `public/brand/` (horizontal, vertical, símbolo), `app/favicon.ico`, `app/icon.png`, `app/apple-icon.png` y los íconos del manifest. Si la fundación entrega un SVG oficial, conviene reemplazarlos.
+- **Logos:** Cesar indicó que el logo solo existe en JPEG, pero `Insumos/Identidad visual Fundapresai.pdf` trae el **logo vectorial** (exportado de Illustrator). `npm run brand:assets` lo renderiza a 1200 dpi con fondo transparente real (sin halos), corrige los colores a los hex del manual y genera `public/brand/` (horizontal, vertical, símbolo) y los íconos del manifest; `npm run brand:share` genera el favicon, `icon.png`, `apple-icon.png`, el logo para Google y la imagen para redes. Si la fundación entrega un SVG oficial, conviene reemplazarlos.
 - **Portadas:** las de Donar Online no vienen en 16:10 y traen texto incrustado; `supabase/seed-images/` tiene recortes provisionales (originales en `originales/`). La de «Colegio de Valores Humanos» es una imagen con la paleta y el símbolo: **falta una foto real**. Se reemplazan desde el panel.
 - **next/image:** solo se optimizan las imágenes del bucket de Supabase (`remotePatterns`). Las URL externas que se peguen en el panel se muestran con `unoptimized` (`lib/images.ts`), para no abrir un proxy de imágenes ni gastar la cuota de Vercel Hobby (ver «Imágenes del panel»).
 - **Hero y «Quiénes somos»:** la foto de «Quiénes somos» aparece a lo ancho sobre la tarjeta morada. La imagen del hero se muestra **solo si no hay una campaña destacada**, es decir, si no hay ninguna campaña activa (el diseño aprobado usa la campaña destacada); el panel lo explica junto al campo y dice si hoy se está mostrando o no. Ambas llevan descripción (`image_alt`, migración `20261007200000_texto_alternativo_imagenes.sql`); sin ella (datos anteriores) se tratan como decorativas.
@@ -187,7 +196,7 @@ Cabeceras en `next.config.ts`: CSP, HSTS, `nosniff`, `Referrer-Policy`, `X-Frame
 - Texto de «Quiénes somos» y relación Fundapresai ↔ colegio, validados por Angela.
 - Política de privacidad base: validar con la fundación.
 - Fotos propias (con autorización si aparecen estudiantes) y foto para «Colegio de Valores Humanos».
-- SMTP para los correos de Auth.
+- SMTP para los correos de Auth (opcional: hoy el administrador general gestiona las contraseñas; ver «Activar la recuperación por correo»).
 
 ## Subdominio (solo cuando el cliente acepte)
 
