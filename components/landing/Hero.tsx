@@ -4,9 +4,9 @@ import Image from "next/image";
 import { LeafSymbol } from "@/components/brand/LeafSymbol";
 import { CampaignCover } from "@/components/campaign/CampaignCover";
 import { DonateLink, DonateNote } from "@/components/campaign/DonateLink";
-import { ButtonLink } from "@/components/ui/Button";
+import { SectionButtonLink } from "@/components/site/SectionLinks";
 import { Container } from "@/components/ui/Container";
-import { ProgressBar } from "@/components/ui/ProgressBar";
+import { ProgressBar, progressLabelOf } from "@/components/ui/ProgressBar";
 import { Tag } from "@/components/ui/Tag";
 import type { PublicCampaign } from "@/lib/content";
 import { shouldSkipOptimization } from "@/lib/images";
@@ -80,8 +80,8 @@ export function Hero({ content, featured }: HeroProps) {
                 <p className="font-semibold leading-snug text-ink">{featured.title}</p>
                 {featured.progress_percent !== null && (
                   <p className="text-sm text-ink-muted">
-                    <strong className="font-semibold text-brand-purple">{featured.progress_percent} %</strong> de la
-                    meta
+                    <strong className="font-semibold text-brand-purple">{featured.progress_percent} %</strong>{" "}
+                    {progressLabelOf(featured)}
                   </p>
                 )}
               </div>
@@ -90,11 +90,17 @@ export function Hero({ content, featured }: HeroProps) {
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             {featured && <DonateLink campaign={featured} label={content.primary_cta_label} size="xl" />}
-            <ButtonLink href="#campanas" variant="secondary" size="xl" icon={<ArrowDown />}>
+            <SectionButtonLink section="campanas" variant="secondary" size="xl" icon={<ArrowDown />}>
               {content.secondary_cta_label}
-            </ButtonLink>
+            </SectionButtonLink>
           </div>
-          {featured && <DonateNote className="mt-5 max-w-md" />}
+          {featured && (
+            // «Donar ahora» va a la campaña destacada: se dice cuál (el título sale de los datos).
+            <DonateNote className="mt-5 max-w-md">
+              Su aporte irá a la campaña «{featured.title}» en Donar Online, la plataforma segura donde recibimos las
+              donaciones.
+            </DonateNote>
+          )}
         </div>
 
         {featured && (
@@ -133,7 +139,7 @@ export function Hero({ content, featured }: HeroProps) {
                 {featured.tag && <Tag>{featured.tag}</Tag>}
                 <p className="mt-3 text-2xl font-semibold tracking-[-0.01em] text-ink">{featured.title}</p>
                 {featured.progress_percent !== null && (
-                  <ProgressBar value={featured.progress_percent} label="de la meta" className="mt-4" />
+                  <ProgressBar value={featured.progress_percent} label={progressLabelOf(featured)} className="mt-4" />
                 )}
                 <DonateLink campaign={featured} fullWidth className="mt-6" />
               </div>

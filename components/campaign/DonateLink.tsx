@@ -1,4 +1,5 @@
 import { HandHeart, LockKeyhole } from "lucide-react";
+import type { ReactNode } from "react";
 
 import { ButtonLink } from "@/components/ui/Button";
 import { cn } from "@/components/ui/cn";
@@ -46,12 +47,12 @@ export function DonateLink({
   );
 }
 
-/** «Será llevado a Donar Online…», con candado. Va debajo del botón. */
-export function DonateNote({ className }: { className?: string }) {
+/** «Será llevado a Donar Online…», con candado. Va debajo del botón (o un texto propio, p. ej. en el hero). */
+export function DonateNote({ className, children }: { className?: string; children?: ReactNode }) {
   return (
     <p className={cn("flex gap-2.5 text-sm text-ink-muted", className)}>
       <LockKeyhole aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-brand-purple" />
-      <span>{DONAR_ONLINE_NOTE}</span>
+      <span>{children ?? DONAR_ONLINE_NOTE}</span>
     </p>
   );
 }
