@@ -29,6 +29,7 @@ values (
     'title', '¿Se siente inspirado? Su aporte transformará vidas.',
     'subtitle', 'Somos una fundación sin ánimo de lucro que forma en valores humanos. Con su ayuda, niños y niñas del Colegio de Valores Humanos Sathya Sai de Funza reciben educación gratuita.',
     'image_url', null,
+    'image_alt', null,
     'primary_cta_label', 'Donar ahora',
     'secondary_cta_label', 'Ver campañas'
   ),
@@ -44,6 +45,7 @@ Creemos que los problemas y las dificultades que enfrenta el país no son por fa
 
 Las donaciones de estas campañas sostienen las becas de los estudiantes, el trabajo de los docentes y los proyectos del colegio.$md$,
     'image_url', null,
+    'image_alt', null,
     'stats', jsonb_build_array(
       jsonb_build_object('value', '108', 'label', 'niños y niñas estudian gratis en el colegio'),
       jsonb_build_object('value', '85 %', 'label', 'de sus becas ya están cubiertas')

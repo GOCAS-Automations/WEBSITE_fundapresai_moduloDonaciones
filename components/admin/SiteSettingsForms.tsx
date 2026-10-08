@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/Button";
 import { FormFooter, TextField, useAdminForm } from "./form";
 import { ImageField } from "./ImageField";
 import { MarkdownEditor } from "./MarkdownEditor";
+import { Notice } from "./ui";
 
 type Raw = Record<string, unknown>;
 type Errors = Record<string, string>;
@@ -39,7 +40,46 @@ function BlockForm({
   );
 }
 
-export function HeroForm({ value }: { value: Raw }) {
+/** Descripción de la imagen de un bloque (obligatoria si hay imagen). */
+function ImageAltField({ value, error }: { value: unknown; error?: string }) {
+  return (
+    <TextField
+      label="Descripción de la imagen"
+      name="image_alt"
+      optional
+      multiline
+      rows={2}
+      max={200}
+      defaultValue={str(value)}
+      error={error}
+      hint="Obligatoria si agrega una imagen: la leen las personas que no pueden verla. Diga qué se ve. Ejemplo: Niños del colegio en el patio, sonriendo."
+    />
+  );
+}
+
+/** Estado de la portada: ¿se está viendo la imagen del hero o la campaña destacada? */
+export type HeroImageStatus = { activeCount: number; featuredTitle: string | null };
+
+function HeroImageNotice({ status }: { status: HeroImageStatus }) {
+  const showing = status.activeCount === 0;
+  return (
+    <Notice tone={showing ? "success" : "info"} title="Se muestra solo si no hay una campaña destacada">
+      <p>
+        La portada del sitio muestra la campaña destacada con su foto. Esta imagen aparece en su lugar solo cuando no
+        hay ninguna campaña activa.
+      </p>
+      <p className="mt-2 font-semibold">
+        {showing
+          ? "Hoy no hay campañas activas: esta imagen SÍ se está mostrando."
+          : `Hoy hay ${status.activeCount} ${status.activeCount === 1 ? "campaña activa" : "campañas activas"}: esta imagen NO se está mostrando${
+              status.featuredTitle ? ` (se ve «${status.featuredTitle}»)` : ""
+            }.`}
+      </p>
+    </Notice>
+  );
+}
+
+export function HeroForm({ value, imageStatus }: { value: Raw; imageStatus: HeroImageStatus }) {
   return (
     <BlockForm block="hero" saveLabel="Guardar portada">
       {(e) => (
@@ -80,8 +120,9 @@ export function HeroForm({ value }: { value: Raw }) {
             error={e.secondary_cta_label}
             hint="Baja hasta la lista de campañas."
           />
+          <HeroImageNotice status={imageStatus} />
           <ImageField
-            label="Imagen de la portada"
+            label="Imagen de la portada (de respaldo)"
             name="image_url"
             optional
             folder="sitio"
@@ -89,8 +130,9 @@ export function HeroForm({ value }: { value: Raw }) {
             aspect="4/3"
             defaultValue={str(value.image_url) || null}
             error={e.image_url}
-            hint="La portada muestra la campaña destacada. Esta imagen solo aparece si no hay ninguna campaña activa."
+            hint="Se muestra solo si no hay una campaña destacada (ninguna campaña activa)."
           />
+          <ImageAltField value={value.image_alt} error={e.image_alt} />
         </>
       )}
     </BlockForm>
@@ -175,6 +217,7 @@ export function AboutForm({ value }: { value: Raw }) {
             error={e.image_url}
             hint="Aparece a lo ancho, encima de la tarjeta morada del colegio."
           />
+          <ImageAltField value={value.image_alt} error={e.image_alt} />
         </>
       )}
     </BlockForm>

@@ -152,26 +152,57 @@ export function donationUrlWarning(url: string): string | null {
 // site_settings: un esquema por bloque (cada bloque tiene su botón Guardar)
 // -----------------------------------------------------------------------------
 
-export const heroSchema = z.object({
+/**
+ * Texto alternativo de la imagen de un bloque. En la base puede faltar (datos
+ * anteriores a este campo): se lee como null. Si hay imagen, es obligatorio
+ * al guardar (ver requireAltWithImage).
+ */
+const imageAlt = () =>
+  z.preprocess(
+    (v) => (v === undefined ? null : emptyToNull(v)),
+    z.string().trim().max(200, "Use máximo 200 caracteres en la descripción de la imagen.").nullable(),
+  );
+
+const IMAGE_ALT_MESSAGE =
+  "Escriba la descripción de la imagen: la leen las personas que no pueden verla. Ejemplo: Niños del colegio en el patio.";
+
+/** Con imagen, la descripción es obligatoria (WCAG 1.1.1). */
+function requireAltWithImage(value: { image_url: string | null; image_alt: string | null }, ctx: z.RefinementCtx) {
+  if (value.image_url && !value.image_alt) {
+    ctx.addIssue({ code: "custom", path: ["image_alt"], message: IMAGE_ALT_MESSAGE });
+  }
+}
+
+/** Campos del hero tal como se leen de la base (sin exigir la descripción, para no tumbar el bloque). */
+export const heroFieldsSchema = z.object({
   eyebrow: optionalText("el texto pequeño superior", 60),
   title: requiredText("el título principal", 120),
   subtitle: requiredText("el subtítulo", 280),
   image_url: optionalHttpsUrl(),
+  image_alt: imageAlt(),
   primary_cta_label: requiredText("el texto del botón principal", 30),
   secondary_cta_label: requiredText("el texto del botón secundario", 30),
 });
+
+/** Hero al guardar desde el panel. */
+export const heroSchema = heroFieldsSchema.superRefine(requireAltWithImage);
 
 export const statSchema = z.object({
   value: requiredText("la cifra", 12),
   label: requiredText("la descripción de la cifra", 80),
 });
 
-export const aboutSchema = z.object({
+/** «Quiénes somos» tal como se lee de la base. */
+export const aboutFieldsSchema = z.object({
   title: requiredText("el título", 80),
   body_md: requiredText("el texto", 5000),
   image_url: optionalHttpsUrl(),
+  image_alt: imageAlt(),
   stats: z.array(statSchema).max(4, "Use máximo 4 cifras."),
 });
+
+/** «Quiénes somos» al guardar desde el panel. */
+export const aboutSchema = aboutFieldsSchema.superRefine(requireAltWithImage);
 
 export const stepSchema = z.object({
   title: requiredText("el título del paso", 60),

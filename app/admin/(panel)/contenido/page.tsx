@@ -35,11 +35,25 @@ export default async function ContentPage() {
   const ctx = await getAdminContext();
   if (!ctx.ok) return null;
 
-  const { data, error } = await ctx.supabase
-    .from("site_settings")
-    .select("hero, about, how_to_donate, help, contact, socials, seo, privacy_md")
-    .eq("id", 1)
-    .maybeSingle();
+  const [{ data, error }, { data: active }] = await Promise.all([
+    ctx.supabase
+      .from("site_settings")
+      .select("hero, about, how_to_donate, help, contact, socials, seo, privacy_md")
+      .eq("id", 1)
+      .maybeSingle(),
+    // Para explicar si la imagen de la portada se está viendo (solo sin campañas activas).
+    ctx.supabase
+      .from("campaigns")
+      .select("title, is_featured")
+      .eq("status", "active")
+      .order("sort_order", { ascending: true })
+      .order("created_at", { ascending: true }),
+  ]);
+  const activeCampaigns = active ?? [];
+  const heroImageStatus = {
+    activeCount: activeCampaigns.length,
+    featuredTitle: (activeCampaigns.find((c) => c.is_featured) ?? activeCampaigns[0])?.title ?? null,
+  };
 
   return (
     <AdminContainer>
@@ -73,7 +87,7 @@ export default async function ContentPage() {
 
           <div className="space-y-12">
             <Section id="portada" title={BLOCKS[0].title} description={BLOCKS[0].description}>
-              <HeroForm value={obj(data.hero)} />
+              <HeroForm value={obj(data.hero)} imageStatus={heroImageStatus} />
             </Section>
             <Section id="quienes-somos" title={BLOCKS[1].title} description={BLOCKS[1].description}>
               <AboutForm value={obj(data.about)} />

@@ -143,9 +143,10 @@ export function Hero({ content, featured }: HeroProps) {
 
         {!featured && content.image_url && (
           <div className="relative aspect-[4/3] overflow-hidden rounded-[1.75rem] bg-brand-purple-soft shadow-lifted ring-1 ring-black/[0.05]">
+            {/* Sin descripción (datos anteriores al campo), se trata como decorativa. */}
             <Image
               src={content.image_url}
-              alt=""
+              alt={content.image_alt ?? ""}
               fill
               sizes="(min-width: 1024px) 40vw, 100vw"
               fetchPriority="high"

@@ -28,7 +28,8 @@ type AboutProps = {
  * «Quiénes somos» (plan §5.1). Sin foto real todavía, así que en lugar de
  * fotos de stock va una composición gráfica con la paleta y el símbolo, con
  * las cifras grandes. Si en el panel se carga `image_url`, la foto va arriba
- * de la baldosa morada, a lo ancho (decorativa: el bloque no tiene texto alternativo).
+ * de la baldosa morada, a lo ancho, con su descripción (image_alt). Sin
+ * descripción (datos anteriores al campo) se trata como decorativa: alt="".
  */
 export function About({ content, city }: AboutProps) {
   return (
@@ -46,7 +47,7 @@ export function About({ content, city }: AboutProps) {
             <div className="relative aspect-[16/10] overflow-hidden rounded-[var(--radius-panel)] bg-brand-purple-soft shadow-soft sm:col-span-2">
               <Image
                 src={content.image_url}
-                alt=""
+                alt={content.image_alt ?? ""}
                 fill
                 sizes="(min-width: 1280px) 600px, (min-width: 1024px) 45vw, 100vw"
                 unoptimized={shouldSkipOptimization(content.image_url)}

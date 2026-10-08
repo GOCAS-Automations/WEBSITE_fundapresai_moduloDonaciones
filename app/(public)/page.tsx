@@ -13,6 +13,7 @@ const FALLBACK_HERO: HeroContent = {
   subtitle:
     "Con su ayuda, niños y niñas del Colegio de Valores Humanos Sathya Sai de Funza reciben educación gratuita.",
   image_url: null,
+  image_alt: null,
   primary_cta_label: "Donar ahora",
   secondary_cta_label: "Ver campañas",
 };

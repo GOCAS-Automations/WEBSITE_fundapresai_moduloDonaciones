@@ -14,10 +14,10 @@ import type { z } from "zod";
 
 import { createSupabasePublicClient } from "@/lib/supabase/public";
 import {
-  aboutSchema,
+  aboutFieldsSchema,
   contactSchema,
   helpSchema,
-  heroSchema,
+  heroFieldsSchema,
   howToDonateSchema,
   seoSchema,
   socialsSchema,
@@ -104,8 +104,8 @@ export async function getSiteSettings(): Promise<SiteSettings | null> {
 
   cacheLife("max");
   return {
-    hero: parseBlock(heroSchema, data.hero, "hero"),
-    about: parseBlock(aboutSchema, data.about, "about"),
+    hero: parseBlock(heroFieldsSchema, data.hero, "hero"),
+    about: parseBlock(aboutFieldsSchema, data.about, "about"),
     howToDonate: parseBlock(howToDonateSchema, data.how_to_donate, "how_to_donate"),
     help: parseBlock(helpSchema, data.help, "help"),
     contact: parseBlock(contactSchema, data.contact, "contact"),
