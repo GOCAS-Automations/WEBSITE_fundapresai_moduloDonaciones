@@ -46,10 +46,12 @@ export function SiteFooter({ contact, socials, year }: SiteFooterProps) {
       <Container className="grid gap-12 py-16 md:grid-cols-2 lg:grid-cols-[1.25fr_1fr_1fr] lg:gap-16 lg:py-20">
         <div className="md:col-span-2 lg:col-span-1">
           <Image
-            src="/brand/logo-vertical-sin-lema.png"
+            src="/brand/logo-vertical-sin-lema-288.png"
             alt="Fundapresai"
             width={144}
             height={134}
+            // Ya viene al doble de su tamaño (npm run brand:share): sin /_next/image.
+            unoptimized
             className="h-auto w-36"
           />
           <p className="mt-4 text-2xl font-medium tracking-[-0.01em] text-brand-orange-ink">

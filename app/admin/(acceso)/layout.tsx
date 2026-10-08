@@ -15,11 +15,12 @@ export default function AccessLayout({ children }: { children: ReactNode }) {
         <BackLink href="/">Volver al sitio</BackLink>
       </div>
       <Image
-        src="/brand/logo-horizontal.png"
+        src="/brand/logo-horizontal-418.png"
         alt="Fundapresai"
         width={209}
         height={44}
         preload
+        unoptimized
         className="mt-6 h-11 w-auto sm:mt-8"
       />
       <div className="mt-8 w-full max-w-md rounded-[var(--radius-panel)] bg-surface p-6 shadow-lifted ring-1 ring-black/[0.05] sm:p-9">

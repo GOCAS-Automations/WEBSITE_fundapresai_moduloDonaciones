@@ -6,8 +6,12 @@
  *   app/favicon.ico                Símbolo en 16, 32 y 48 px (el de 16 px, afinado a mano)
  *   app/icon.png                   Símbolo 192×192 (múltiplo de 48, como pide Google)
  *   app/apple-icon.png             Símbolo 180×180 con fondo sólido (iOS pone negro el transparente)
+ *   public/brand/logo-horizontal-418.png, logo-vertical-sin-lema-288.png
+ *                                  Logos del header y del pie al doble de su tamaño en pantalla
+ *                                  (sin /_next/image, el sitio los muestra tal cual: PNG de paleta, ~7 veces más livianos)
  *
  * Uso:  npm run brand:share   (requiere el Chrome instalado, CHROME_PATH, e internet para Poppins)
+ *       npm run brand:share -- --logos   (solo los logos del sitio)
  *
  * La imagen para redes se arma como HTML con Poppins (la letra del sitio) y
  * se fotografía con Chrome; los íconos salen del símbolo vectorial
@@ -142,7 +146,23 @@ async function favicon16(): Promise<Buffer> {
   return sharp(big).resize(16, 16, { kernel: "lanczos3" }).png({ compressionLevel: 9 }).toBuffer();
 }
 
+/** Logos del sitio al doble del ancho con que se muestran (pantallas 2×), en PNG de paleta: colores planos, nítidos y livianos. */
+async function webLogos() {
+  const logos = [
+    { from: "public/brand/logo-horizontal.png", to: "public/brand/logo-horizontal-418.png", width: 418 },
+    { from: "public/brand/logo-vertical-sin-lema.png", to: "public/brand/logo-vertical-sin-lema-288.png", width: 288 },
+  ];
+  for (const logo of logos) {
+    const info = await sharp(path.join(ROOT, logo.from))
+      .resize({ width: logo.width })
+      .png({ palette: true, quality: 90, compressionLevel: 9 })
+      .toFile(path.join(ROOT, logo.to));
+    console.log(`${logo.to}: ${info.width}×${info.height}, ${(info.size / 1024).toFixed(1)} KB`);
+  }
+}
+
 async function main() {
+  if (process.argv.includes("--logos")) return webLogos();
   const only = process.argv.includes("--og-only");
   const out = (p: string) => {
     const full = path.join(ROOT, p);
@@ -200,6 +220,7 @@ async function main() {
   writeFileSync(out("app/apple-icon.png"), apple);
 
   console.log("Listo: logo-google.png, favicon.ico (16/32/48), icon.png (192) y apple-icon.png (180, opaco).");
+  await webLogos();
 }
 
 main().catch((err) => {

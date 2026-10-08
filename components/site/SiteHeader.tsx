@@ -25,11 +25,13 @@ export function SiteHeader({ donateCampaigns }: { donateCampaigns: HeaderDonateC
         >
           <LeafSymbol className="h-10 w-auto sm:hidden" />
           <Image
-            src="/brand/logo-horizontal.png"
+            src="/brand/logo-horizontal-418.png"
             alt=""
             width={209}
             height={44}
             preload
+            // Ya viene al doble de su tamaño (npm run brand:share): sin /_next/image.
+            unoptimized
             className="hidden h-11 w-auto sm:block"
           />
         </Link>
