@@ -17,6 +17,7 @@
     "db:types": "tsx scripts/gen-types.ts",
     "seed:images": "tsx scripts/seed-images.ts",
     "backup": "tsx scripts/backup.ts",
+    "images:variants": "tsx scripts/image-variants.ts",
     "auth:configure": "tsx scripts/configure-auth.ts",
     "admin:super": "tsx scripts/create-super-admin.ts",
     "admin:user": "tsx scripts/create-admin.ts",
