@@ -355,7 +355,9 @@ async function caseDonar(context: BrowserContext, page: Page, width: number) {
     await scrollToY(page, 500);
     const pagesBefore = context.pages().length;
     await armClickY(page);
-    await donar().click();
+    // Clic del DOM: Playwright desplazaría la página antes de tocar un botón del header fijo, y
+    // Chrome a veces guarda en el historial la posición de antes de ese desplazamiento.
+    await donar().evaluate((el) => (el as HTMLElement).click());
     await page.waitForURL(/donaronline\.org/, { timeout: 10000 });
     const sameTab = context.pages().length === pagesBefore;
     const utm = new URL(page.url()).searchParams.get("utm_campaign");
