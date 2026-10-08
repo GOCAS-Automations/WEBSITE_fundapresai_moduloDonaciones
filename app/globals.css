@@ -37,9 +37,14 @@
   --color-whatsapp: #0a6640;
   --color-whatsapp-dark: #08502f;
 
-  /* Estados (panel) */
+  /* Estados (panel). Contraste en scripts/check-contrast.ts. */
   --color-warning-bg: #fff4d6;
   --color-warning-ink: #6b4300;
+  --color-success-bg: #e6f4ec;
+  --color-success-ink: #0a6640;
+  --color-danger-bg: #fdecea;
+  --color-danger-ink: #a1251b;
+  --color-neutral-bg: #ecebf0;
 
   /* Tipografía: Poppins (next/font) con respaldo del sistema */
   --font-sans: var(--font-poppins), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;

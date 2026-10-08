@@ -1,9 +1,9 @@
 import Link from "next/link";
-import type { ComponentPropsWithoutRef, ReactNode } from "react";
+import type { ComponentProps, ComponentPropsWithoutRef, ReactNode } from "react";
 
 import { cn } from "./cn";
 
-type Variant = "primary" | "secondary" | "tinted" | "whatsapp" | "quiet";
+type Variant = "primary" | "secondary" | "tinted" | "whatsapp" | "quiet" | "danger" | "dangerOutline";
 type Size = "md" | "lg" | "xl" | "compact";
 
 type StyleProps = {
@@ -40,6 +40,9 @@ const variants: Record<Variant, string> = {
   whatsapp:
     "bg-whatsapp text-white shadow-[0_1px_2px_rgb(43_34_51/0.12),0_6px_16px_-4px_rgb(10_102_64/0.45)] hover:bg-whatsapp-dark",
   quiet: "text-brand-purple underline underline-offset-4 hover:bg-brand-purple-soft",
+  // Panel: blanco sobre rojo oscuro (7,5:1) y contorno rojo sobre blanco.
+  danger: "bg-danger-ink text-white hover:bg-[#82180f]",
+  dangerOutline: "border-2 border-danger-ink/35 bg-surface text-danger-ink hover:bg-danger-bg",
 };
 
 const sizes: Record<Size, string> = {
@@ -78,7 +81,7 @@ function Content({
   );
 }
 
-type ButtonProps = StyleProps & ComponentPropsWithoutRef<"button">;
+type ButtonProps = StyleProps & ComponentProps<"button">;
 
 export function Button({
   variant,

@@ -101,7 +101,7 @@ export type CampaignStatus = (typeof CAMPAIGN_STATUSES)[number];
 
 export const CAMPAIGN_STATUS_LABELS: Record<CampaignStatus, string> = {
   draft: "Borrador",
-  active: "Publicada",
+  active: "Activa",
   hidden: "Oculta",
 };
 
@@ -124,7 +124,7 @@ export const campaignSchema = z.object({
       .max(100, "El avance no puede ser mayor que 100.")
       .nullable(),
   ),
-  status: z.enum(CAMPAIGN_STATUSES, "Elija un estado: borrador, publicada u oculta."),
+  status: z.enum(CAMPAIGN_STATUSES, "Elija un estado: activa, borrador u oculta."),
   is_featured: checkbox,
   sort_order: z.coerce
     .number("El orden debe ser un número.")

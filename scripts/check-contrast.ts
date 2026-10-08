@@ -27,6 +27,11 @@ const C = {
   whatsappDark: "#08502f",
   amberBg: "#fff4d6",
   amberInk: "#6b4300",
+  successBg: "#e6f4ec",
+  successInk: "#0a6640",
+  dangerBg: "#fdecea",
+  dangerInk: "#a1251b",
+  neutralBg: "#ecebf0",
 };
 
 function luminance(hex: string) {
@@ -59,6 +64,12 @@ const checks: { uso: string; fg: string; bg: string; min: number }[] = [
   { uso: "Botón primario hover: blanco sobre morado oscuro", fg: C.white, bg: C.purpleDark, min: 7 },
   { uso: "Etiqueta: morado oscuro sobre rosa", fg: C.purpleDark, bg: C.pink, min: 4.5 },
   { uso: "Aviso ámbar del panel", fg: C.amberInk, bg: C.amberBg, min: 4.5 },
+  { uso: "Panel: insignia «Activa» y mensaje de éxito", fg: C.successInk, bg: C.successBg, min: 4.5 },
+  { uso: "Panel: insignia «Borrador»", fg: C.inkMuted, bg: C.neutralBg, min: 4.5 },
+  { uso: "Panel: insignia «Oculta» (ámbar)", fg: C.amberInk, bg: C.amberBg, min: 4.5 },
+  { uso: "Panel: mensaje de error", fg: C.dangerInk, bg: C.dangerBg, min: 4.5 },
+  { uso: "Panel: texto de error sobre blanco", fg: C.dangerInk, bg: C.white, min: 4.5 },
+  { uso: "Panel: botón Eliminar (blanco sobre rojo)", fg: C.white, bg: C.dangerInk, min: 4.5 },
   { uso: "Botón WhatsApp: blanco sobre verde oscuro", fg: C.white, bg: C.whatsapp, min: 7 },
   { uso: "Botón WhatsApp hover", fg: C.white, bg: C.whatsappDark, min: 7 },
   { uso: "Botón «Menú»: morado sobre morado suave", fg: C.purple, bg: C.purpleSoft, min: 7 },
