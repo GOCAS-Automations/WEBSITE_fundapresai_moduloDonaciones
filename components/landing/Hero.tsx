@@ -1,4 +1,5 @@
 import { ArrowDown, Star } from "lucide-react";
+import Image from "next/image";
 
 import { LeafSymbol } from "@/components/brand/LeafSymbol";
 import { CampaignCover } from "@/components/campaign/CampaignCover";
@@ -8,6 +9,7 @@ import { Container } from "@/components/ui/Container";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { Tag } from "@/components/ui/Tag";
 import type { PublicCampaign } from "@/lib/content";
+import { shouldSkipOptimization } from "@/lib/images";
 import type { Hero as HeroContent } from "@/lib/validations";
 
 /**
@@ -25,7 +27,10 @@ type HeroProps = {
   featured: PublicCampaign | null;
 };
 
-/** Hero (plan §5.1): Large Title cálido, dos acciones y la campaña destacada. */
+/**
+ * Hero (plan §5.1): Large Title cálido, dos acciones y la campaña destacada.
+ * La imagen del hero (panel) solo aparece si no hay ninguna campaña activa.
+ */
 export function Hero({ content, featured }: HeroProps) {
   const [first, second] = splitTitle(content.title);
 
@@ -133,6 +138,20 @@ export function Hero({ content, featured }: HeroProps) {
                 <DonateLink campaign={featured} fullWidth className="mt-6" />
               </div>
             </article>
+          </div>
+        )}
+
+        {!featured && content.image_url && (
+          <div className="relative aspect-[4/3] overflow-hidden rounded-[1.75rem] bg-brand-purple-soft shadow-lifted ring-1 ring-black/[0.05]">
+            <Image
+              src={content.image_url}
+              alt=""
+              fill
+              sizes="(min-width: 1024px) 40vw, 100vw"
+              fetchPriority="high"
+              unoptimized={shouldSkipOptimization(content.image_url)}
+              className="object-cover"
+            />
           </div>
         )}
       </Container>

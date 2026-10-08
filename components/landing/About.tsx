@@ -1,8 +1,10 @@
 import { MapPin } from "lucide-react";
-import Markdown from "react-markdown";
+import Image from "next/image";
 
 import { LeafSymbol } from "@/components/brand/LeafSymbol";
+import { MarkdownContent } from "@/components/content/MarkdownContent";
 import { Container } from "@/components/ui/Container";
+import { shouldSkipOptimization } from "@/lib/images";
 import type { About as AboutContent } from "@/lib/validations";
 import { SectionHeading } from "./SectionHeading";
 
@@ -25,8 +27,8 @@ type AboutProps = {
 /**
  * «Quiénes somos» (plan §5.1). Sin foto real todavía, así que en lugar de
  * fotos de stock va una composición gráfica con la paleta y el símbolo, con
- * las cifras grandes. Si en el panel se carga `image_url`, conviene mostrarla
- * en la baldosa morada (fase 4).
+ * las cifras grandes. Si en el panel se carga `image_url`, la foto va arriba
+ * de la baldosa morada, a lo ancho (decorativa: el bloque no tiene texto alternativo).
  */
 export function About({ content, city }: AboutProps) {
   return (
@@ -34,24 +36,25 @@ export function About({ content, city }: AboutProps) {
       <Container className="grid items-start gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-20">
         <div>
           <SectionHeading id="quienes-somos-title" eyebrow="Fundapresai" title={content.title} />
-          <div className="mt-6 max-w-[38rem] space-y-5 text-ink-muted [&_strong]:font-semibold [&_strong]:text-ink">
-            <Markdown
-              allowedElements={["p", "strong", "em", "ul", "ol", "li", "a"]}
-              unwrapDisallowed
-              components={{
-                a: ({ href, children }) => (
-                  <a href={href} className="font-medium text-brand-purple underline underline-offset-4">
-                    {children}
-                  </a>
-                ),
-              }}
-            >
-              {content.body_md}
-            </Markdown>
-          </div>
+          <MarkdownContent variant="inline" className="mt-6 max-w-[38rem]">
+            {content.body_md}
+          </MarkdownContent>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
+          {content.image_url && (
+            <div className="relative aspect-[16/10] overflow-hidden rounded-[var(--radius-panel)] bg-brand-purple-soft shadow-soft sm:col-span-2">
+              <Image
+                src={content.image_url}
+                alt=""
+                fill
+                sizes="(min-width: 1280px) 600px, (min-width: 1024px) 45vw, 100vw"
+                unoptimized={shouldSkipOptimization(content.image_url)}
+                className="object-cover"
+              />
+            </div>
+          )}
+
           {/* Baldosa principal: el colegio. */}
           <div className="relative isolate overflow-hidden rounded-[var(--radius-panel)] bg-[linear-gradient(140deg,#6d3896_0%,var(--color-brand-purple)_45%,#3f1c5a_100%)] p-7 text-white shadow-lifted sm:col-span-2 sm:p-8">
             <div aria-hidden="true" className="absolute -right-10 -top-6 -z-10 w-72 text-white/[0.09] sm:w-80">
