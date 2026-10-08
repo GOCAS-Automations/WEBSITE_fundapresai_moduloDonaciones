@@ -52,4 +52,6 @@ export function revalidateCampaign(slug?: string, previousSlug?: string) {
     revalidatePath(`/campanas/${s}`);
   }
   revalidatePath("/");
+  // Plan §9: el sitemap lista las campañas (la ruta llega en la fase 3; sin ella no hace nada).
+  revalidatePath("/sitemap.xml");
 }
