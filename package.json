@@ -18,7 +18,8 @@
     "backup": "tsx scripts/backup.ts",
     "auth:configure": "tsx scripts/configure-auth.ts",
     "test:rls": "tsx scripts/test-rls.ts",
-    "shots": "tsx scripts/screenshot.ts"
+    "shots": "tsx scripts/screenshot.ts",
+    "test:admin": "tsx scripts/e2e-admin.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

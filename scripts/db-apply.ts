@@ -17,9 +17,10 @@ import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
-import { Client, type ClientConfig } from "pg";
+import { Client } from "pg";
 
-import { loadLocalEnv, requireEnv, ROOT } from "./lib/env";
+import { pgClientConfig } from "./lib/db";
+import { loadLocalEnv, ROOT } from "./lib/env";
 
 const MIGRATIONS_DIR = path.join(ROOT, "supabase", "migrations");
 const SEED_FILE = path.join(ROOT, "supabase", "seed.sql");
@@ -27,19 +28,6 @@ const LOCK_KEY = 718_204_551; // pg_advisory_lock: evita dos ejecuciones simult�
 
 function checksum(sql: string): string {
   return createHash("sha256").update(sql.replace(/\r\n/g, "\n")).digest("hex");
-}
-
-function clientConfig(): ClientConfig {
-  const url = new URL(requireEnv("SUPABASE_DB_URL"));
-  // sslmode en la URL anularía la opción ssl de abajo: se controla aquí.
-  url.searchParams.delete("sslmode");
-  const caPath = process.env.SUPABASE_DB_CA_CERT?.trim();
-  return {
-    connectionString: url.toString(),
-    ssl: caPath ? { ca: readFileSync(caPath, "utf8"), rejectUnauthorized: true } : { rejectUnauthorized: false },
-    application_name: "fundapresai-db-apply",
-    statement_timeout: 120_000,
-  };
 }
 
 function describePgError(err: unknown, sql: string): string {
@@ -78,7 +66,7 @@ async function main() {
     .filter((f) => /^\d+_.+\.sql$/.test(f))
     .sort();
 
-  const client = new Client(clientConfig());
+  const client = new Client(pgClientConfig("fundapresai-db-apply"));
   await client.connect();
   if (!process.env.SUPABASE_DB_CA_CERT) {
     console.log("Conexión con SSL (sin verificar la CA; defina SUPABASE_DB_CA_CERT para verificarla).");
