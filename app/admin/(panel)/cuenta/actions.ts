@@ -38,7 +38,7 @@ export async function changeOwnPassword(_prev: ActionState, formData: FormData):
   if (!parsed.success) return fail(VALIDATION_MESSAGE, fieldErrors(parsed.error));
 
   const email = auth.user.email;
-  if (!email) return fail("Su cuenta no tiene correo. Pídale al administrador general que la revise.");
+  if (!email) return fail("Su cuenta no tiene usuario. Pídale al administrador general que la revise.");
 
   // 1. La contraseña actual se comprueba con signInWithPassword (cliente aparte, sin tocar la sesión).
   const wrong = await verifyPassword(email, parsed.data.current);

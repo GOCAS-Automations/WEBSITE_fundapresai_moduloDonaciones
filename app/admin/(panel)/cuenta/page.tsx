@@ -6,6 +6,7 @@ import { OwnNameForm, OwnPasswordForm } from "@/components/admin/AccountForms";
 import { SignOutButton } from "@/components/admin/SignOutButton";
 import { AdminContainer, PageHeader, Section } from "@/components/admin/ui";
 import { getAdminContext } from "@/lib/admin/session";
+import { usernameFromEmail } from "@/lib/admin/username";
 
 export const metadata: Metadata = { title: "Mi cuenta" };
 
@@ -16,7 +17,7 @@ export default async function AccountPage() {
 
   const { data: admin } = await ctx.supabase
     .from("admins")
-    .select("name, is_super")
+    .select("name, username, is_super")
     .eq("user_id", ctx.user.id)
     .maybeSingle();
 
@@ -25,15 +26,15 @@ export default async function AccountPage() {
       <PageHeader
         back={{ href: "/admin", label: "Inicio" }}
         title="Mi cuenta"
-        description="Su nombre y su contraseña para entrar al panel."
+        description="Su usuario, su nombre y su contraseña para entrar al panel."
       />
 
       <div className="space-y-10">
         <Section id="datos" title="Sus datos">
           <dl className="mb-6 grid gap-4 text-lg sm:grid-cols-2">
             <div>
-              <dt className="text-base text-ink-muted">Correo para entrar</dt>
-              <dd className="break-all font-semibold">{ctx.user.email}</dd>
+              <dt className="text-base text-ink-muted">Usuario para entrar</dt>
+              <dd className="break-all font-semibold">{admin?.username ?? usernameFromEmail(ctx.user.email) ?? ""}</dd>
             </div>
             <div>
               <dt className="text-base text-ink-muted">Permisos</dt>

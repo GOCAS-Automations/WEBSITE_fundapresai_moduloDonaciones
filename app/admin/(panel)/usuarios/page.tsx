@@ -44,7 +44,7 @@ export default async function UsersPage() {
   const view: PanelUserView[] = users.map((u) => ({
     id: u.id,
     name: u.name,
-    email: u.email,
+    username: u.username,
     isSuper: u.isSuper,
     created: dateFmt.format(new Date(u.createdAt)),
     lastSignIn: u.lastSignInAt ? dateTimeFmt.format(new Date(u.lastSignInAt)) : null,
@@ -55,7 +55,7 @@ export default async function UsersPage() {
       <PageHeader
         back={{ href: "/admin", label: "Inicio" }}
         title="Usuarios"
-        description="Cuentas que pueden entrar al panel. No se envían correos: al crear una cuenta o restablecer una contraseña, entréguesela usted a la persona."
+        description="Cuentas que pueden entrar al panel. Cada una entra con su usuario y su contraseña. No se envían correos: al crear una cuenta o restablecer una contraseña, entréguesela usted a la persona."
         actions={
           <a href="#crear" className={buttonClasses({ size: "lg" })}>
             Crear administrador

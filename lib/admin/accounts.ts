@@ -38,7 +38,8 @@ export async function requireSuperAdmin(verified?: AdminContext) {
 export type PanelUser = {
   id: string;
   name: string;
-  email: string;
+  /** Usuario para entrar (admins.username). */
+  username: string;
   isSuper: boolean;
   createdAt: string;
   lastSignInAt: string | null;
@@ -48,12 +49,12 @@ type SuperAdminOk = Extract<Awaited<ReturnType<typeof requireSuperAdmin>>, { ok:
 
 /**
  * Cuentas con acceso al panel: filas de `admins` (leídas con la sesión: RLS
- * deja al administrador general verlas todas) unidas con su correo y último
- * ingreso de Auth (auth.admin.listUsers, con la clave secreta).
+ * deja al administrador general verlas todas, con su usuario) unidas con la
+ * creación y el último ingreso de Auth (auth.admin.listUsers, clave secreta).
  */
 export async function listPanelUsers(auth: SuperAdminOk): Promise<{ users: PanelUser[]; error: unknown }> {
   const [admins, list] = await Promise.all([
-    auth.supabase.from("admins").select("user_id, name, is_super, created_at").order("created_at", { ascending: true }),
+    auth.supabase.from("admins").select("user_id, name, username, is_super, created_at").order("created_at", { ascending: true }),
     auth.service.auth.admin.listUsers({ page: 1, perPage: 1000 }),
   ]);
   if (admins.error) return { users: [], error: admins.error };
@@ -64,7 +65,7 @@ export async function listPanelUsers(auth: SuperAdminOk): Promise<{ users: Panel
     return {
       id: a.user_id,
       name: a.name,
-      email: u?.email ?? "",
+      username: a.username,
       isSuper: a.is_super,
       createdAt: u?.created_at ?? a.created_at,
       lastSignInAt: u?.last_sign_in_at ?? null,

@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import { ResetPasswordForm } from "@/components/admin/AuthForms";
 import { Notice } from "@/components/admin/ui";
 import { buttonClasses } from "@/components/ui/Button";
+import { usernameFromEmail } from "@/lib/admin/username";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "Nueva contraseña" };
@@ -32,7 +33,7 @@ async function ResetContent() {
   return (
     <>
       <p className="mb-6 text-lg text-ink-muted">
-        Cuenta: <strong className="font-semibold text-ink">{user.email}</strong>
+        Cuenta: <strong className="font-semibold text-ink">{usernameFromEmail(user.email) ?? user.email}</strong>
       </p>
       <ResetPasswordForm />
     </>

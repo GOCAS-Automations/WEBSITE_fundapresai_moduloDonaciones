@@ -7,6 +7,7 @@ import { z } from "zod";
 import { fail, type ActionState } from "@/lib/admin/action-state";
 import { humanizeError } from "@/lib/admin/errors";
 import { newPasswordSchema } from "@/lib/admin/password";
+import { usernameSchema, usernameToEmail } from "@/lib/admin/username";
 import { isPasswordRecoveryEnabled } from "@/lib/env";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { fieldErrors } from "@/lib/validations";
@@ -17,21 +18,40 @@ function safeNext(value: FormDataEntryValue | null): string {
   return /^\/admin(\/[a-z0-9\-/]*)?$/.test(next) && !next.startsWith("/admin/login") ? next : "/admin";
 }
 
+/** Único mensaje ante un usuario o una contraseña que no coinciden: no revela cuál falló ni si la cuenta existe. */
+const WRONG_LOGIN = "Usuario o contraseña incorrectos.";
+
 const loginSchema = z.object({
-  email: z.email("Escriba su correo completo. Ejemplo: nombre@dominio.org"),
+  username: z.string().trim().min(1, "Escriba su usuario."),
   password: z.string().min(1, "Escriba su contraseña."),
 });
 
+/**
+ * Entrar con usuario y contraseña. El usuario se convierte AQUÍ, en el
+ * servidor, en su correo interno de Supabase Auth (lib/admin/username.ts).
+ */
 export async function signIn(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const parsed = loginSchema.safeParse({
-    email: String(formData.get("email") ?? "").trim(),
+    username: String(formData.get("username") ?? ""),
     password: String(formData.get("password") ?? ""),
   });
   if (!parsed.success) return fail("Revise los datos marcados en rojo.", fieldErrors(parsed.error));
 
+  // Un usuario con un formato imposible no existe: el mismo mensaje, sin consultar a Auth.
+  const username = usernameSchema.safeParse(parsed.data.username);
+  if (!username.success) return fail(WRONG_LOGIN);
+
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.auth.signInWithPassword(parsed.data);
-  if (error) return fail(humanizeError(error, "login"));
+  const { error } = await supabase.auth.signInWithPassword({
+    email: usernameToEmail(username.data),
+    password: parsed.data.password,
+  });
+  if (error) {
+    if (error.code === "invalid_credentials" || /invalid login credentials/i.test(error.message)) {
+      return fail(WRONG_LOGIN);
+    }
+    return fail(humanizeError(error, "login"));
+  }
 
   redirect(safeNext(formData.get("next")));
 }

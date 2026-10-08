@@ -23,7 +23,7 @@ export function fail(message: string, fieldErrors?: Record<string, string>): Act
 
 /** Mensajes de las verificaciones de acceso (iguales en todo el panel). */
 export const ACCESS_MESSAGES = {
-  "sin-sesion": "Su sesión se cerró. Vuelva a entrar con su correo y contraseña e intente de nuevo.",
+  "sin-sesion": "Su sesión se cerró. Vuelva a entrar con su usuario y contraseña e intente de nuevo.",
   "no-admin":
     "Su cuenta no tiene permiso para hacer cambios en el sitio. Si cree que es un error, escriba a GOCAS.",
 } as const;

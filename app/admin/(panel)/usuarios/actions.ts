@@ -16,6 +16,7 @@ import { requireSuperAdmin } from "@/lib/admin/accounts";
 import { ACCESS_MESSAGES, fail, ok, VALIDATION_MESSAGE, type ActionState } from "@/lib/admin/action-state";
 import { humanizeError } from "@/lib/admin/errors";
 import { newPasswordSchema } from "@/lib/admin/password";
+import { usernameSchema, usernameToEmail } from "@/lib/admin/username";
 import { fieldErrors } from "@/lib/validations";
 
 const MESSAGES = {
@@ -31,21 +32,41 @@ const nameSchema = z
 
 const createSchema = z.object({
   name: nameSchema,
-  email: z
-    .string()
-    .trim()
-    .toLowerCase()
-    .pipe(z.email("Escriba el correo completo. Ejemplo: nombre@dominio.org")),
+  username: usernameSchema,
   password: newPasswordSchema,
+});
+
+const editSchema = z.object({
+  name: nameSchema,
+  username: usernameSchema,
 });
 
 const idSchema = z.uuid();
 
+const USERNAME_TAKEN = "Ese usuario ya lo tiene otra cuenta. Elija otro.";
+
+type Service = Extract<Awaited<ReturnType<typeof requireSuperAdmin>>, { ok: true }>["service"];
+
 /** Fila de `admins` del usuario objetivo (con la clave secreta, ya verificado). */
-async function findTarget(service: Extract<Awaited<ReturnType<typeof requireSuperAdmin>>, { ok: true }>["service"], id: string) {
-  const { data, error } = await service.from("admins").select("user_id, name, is_super").eq("user_id", id).maybeSingle();
+async function findTarget(service: Service, id: string) {
+  const { data, error } = await service
+    .from("admins")
+    .select("user_id, name, username, is_super")
+    .eq("user_id", id)
+    .maybeSingle();
   return { target: data, error };
 }
+
+/** ¿Otra cuenta ya usa este usuario? (aviso claro antes de tocar Auth; la base igual lo impide). */
+async function usernameTaken(service: Service, username: string, exceptId?: string) {
+  let query = service.from("admins").select("user_id").eq("username", username);
+  if (exceptId) query = query.neq("user_id", exceptId);
+  const { data, error } = await query.limit(1);
+  return { taken: Boolean(data?.length), error };
+}
+
+const isEmailExists = (e: { code?: string; message: string }) =>
+  e.code === "email_exists" || /already (been )?registered|already exists/i.test(e.message);
 
 export async function createPanelUser(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const auth = await requireSuperAdmin();
@@ -53,36 +74,38 @@ export async function createPanelUser(_prev: ActionState, formData: FormData): P
 
   const parsed = createSchema.safeParse({
     name: String(formData.get("name") ?? ""),
-    email: String(formData.get("email") ?? ""),
+    username: String(formData.get("username") ?? ""),
     password: String(formData.get("password") ?? ""),
   });
   if (!parsed.success) return fail(VALIDATION_MESSAGE, fieldErrors(parsed.error));
-  const { name, email, password } = parsed.data;
+  const { name, username, password } = parsed.data;
 
-  // Sin correo de confirmación: la cuenta nace confirmada.
+  const check = await usernameTaken(auth.service, username);
+  if (check.error) return fail(humanizeError(check.error, "revisar usuario"));
+  if (check.taken) return fail(VALIDATION_MESSAGE, { username: USERNAME_TAKEN });
+
+  // Correo interno (nunca recibe correos) y sin confirmación: la cuenta nace lista.
   const created = await auth.service.auth.admin.createUser({
-    email,
+    email: usernameToEmail(username),
     password,
     email_confirm: true,
     user_metadata: { name },
   });
   if (created.error) {
-    const e = created.error;
-    if (e.code === "email_exists" || /already (been )?registered|already exists/i.test(e.message)) {
-      return fail(VALIDATION_MESSAGE, { email: "Ya existe una cuenta con este correo. Revise la lista de cuentas." });
-    }
-    return fail(humanizeError(e, "crear usuario"));
+    if (isEmailExists(created.error)) return fail(VALIDATION_MESSAGE, { username: USERNAME_TAKEN });
+    return fail(humanizeError(created.error, "crear usuario"));
   }
 
-  const insert = await auth.service.from("admins").insert({ user_id: created.data.user.id, name });
+  const insert = await auth.service.from("admins").insert({ user_id: created.data.user.id, name, username });
   if (insert.error) {
     // Deshacer: no dejar un usuario de Auth sin acceso al panel.
     await auth.service.auth.admin.deleteUser(created.data.user.id);
+    if (insert.error.code === "23505") return fail(VALIDATION_MESSAGE, { username: USERNAME_TAKEN });
     return fail(humanizeError(insert.error, "crear admin"));
   }
 
   refresh();
-  return ok(`Se creó la cuenta de ${name}. Ya puede entrar al panel con su correo y esta contraseña.`);
+  return ok(`Se creó la cuenta de ${name}. Ya puede entrar al panel con el usuario «${username}» y esta contraseña.`);
 }
 
 export async function resetPanelUserPassword(userId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -104,20 +127,67 @@ export async function resetPanelUserPassword(userId: string, _prev: ActionState,
   return ok(`Se restableció la contraseña de ${target.name || "la cuenta"}.`);
 }
 
-export async function renamePanelUser(userId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+/**
+ * Editar el nombre y el usuario de OTRA cuenta. Si cambia el usuario, cambia
+ * primero el correo interno en Auth y luego `admins`; si lo segundo falla, se
+ * devuelve el correo anterior (Auth y `admins` nunca quedan distintos).
+ */
+export async function updatePanelUser(userId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
   const auth = await requireSuperAdmin();
   if (!auth.ok) return fail(MESSAGES[auth.reason]);
   if (!idSchema.safeParse(userId).success) return fail("Esa cuenta no existe.");
 
-  const parsed = nameSchema.safeParse(String(formData.get("name") ?? ""));
-  if (!parsed.success) return fail(VALIDATION_MESSAGE, { name: parsed.error.issues[0]?.message ?? "Revise el nombre." });
+  const parsed = editSchema.safeParse({
+    name: String(formData.get("name") ?? ""),
+    username: String(formData.get("username") ?? ""),
+  });
+  if (!parsed.success) return fail(VALIDATION_MESSAGE, fieldErrors(parsed.error));
+  const { name, username } = parsed.data;
 
-  const { data, error } = await auth.service.from("admins").update({ name: parsed.data }).eq("user_id", userId).select("user_id");
-  if (error) return fail(humanizeError(error, "editar nombre"));
-  if (!data.length) return fail("No encontramos esa cuenta: puede que ya no tenga acceso.");
+  const { target, error: findError } = await findTarget(auth.service, userId);
+  if (findError) return fail(humanizeError(findError, "leer admin"));
+  if (!target) return fail("No encontramos esa cuenta: puede que ya no tenga acceso.");
+
+  const usernameChanged = username !== target.username;
+  if (usernameChanged) {
+    if (userId === auth.user.id) {
+      return fail(VALIDATION_MESSAGE, { username: "Su propio usuario no se cambia desde aquí." });
+    }
+    const check = await usernameTaken(auth.service, username, userId);
+    if (check.error) return fail(humanizeError(check.error, "revisar usuario"));
+    if (check.taken) return fail(VALIDATION_MESSAGE, { username: USERNAME_TAKEN });
+
+    const moved = await auth.service.auth.admin.updateUserById(userId, {
+      email: usernameToEmail(username),
+      email_confirm: true,
+    });
+    if (moved.error) {
+      if (isEmailExists(moved.error)) return fail(VALIDATION_MESSAGE, { username: USERNAME_TAKEN });
+      return fail(humanizeError(moved.error, "cambiar usuario"));
+    }
+  }
+
+  const { data, error } = await auth.service
+    .from("admins")
+    .update({ name, username })
+    .eq("user_id", userId)
+    .select("user_id");
+  if (error || !data.length) {
+    if (usernameChanged) {
+      await auth.service.auth.admin.updateUserById(userId, { email: usernameToEmail(target.username), email_confirm: true });
+    }
+    if (error?.code === "23505") return fail(VALIDATION_MESSAGE, { username: USERNAME_TAKEN });
+    return error
+      ? fail(humanizeError(error, "editar cuenta"))
+      : fail("No encontramos esa cuenta: puede que ya no tenga acceso.");
+  }
 
   refresh();
-  return ok(`Se guardó el nombre «${parsed.data}».`);
+  return ok(
+    usernameChanged
+      ? `Se guardaron los datos de ${name}. Desde ahora entra con el usuario «${username}» (su contraseña no cambió).`
+      : `Se guardó el nombre «${name}».`,
+  );
 }
 
 export async function removePanelUser(userId: string): Promise<ActionState> {

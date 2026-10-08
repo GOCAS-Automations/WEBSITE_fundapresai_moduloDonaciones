@@ -15,7 +15,7 @@ export default function LoginPage() {
   return (
     <>
       <h1 className="text-[2rem] leading-tight tracking-[-0.02em]">Panel de Fundapresai</h1>
-      <p className="mt-2 mb-8 text-lg text-ink-muted">Entre con su correo y su contraseña.</p>
+      <p className="mt-2 mb-8 text-lg text-ink-muted">Entre con su usuario y su contraseña.</p>
       <Suspense fallback={null}>
         <SignedOutNotice />
       </Suspense>

@@ -6,6 +6,7 @@ import { AdminHeader } from "@/components/admin/AdminHeader";
 import { SignOutButton } from "@/components/admin/SignOutButton";
 import { AdminContainer, Notice } from "@/components/admin/ui";
 import { getAdminContext } from "@/lib/admin/session";
+import { usernameFromEmail } from "@/lib/admin/username";
 
 /**
  * Marco del panel. El header es estático; lo que depende de la sesión va
@@ -57,11 +58,11 @@ async function AdminGate({ children }: { children: ReactNode }) {
       <Notice tone={noAdmin ? "warning" : "info"} className="mt-6">
         {noAdmin ? (
           <>
-            Entró como <strong className="font-semibold">{ctx.user.email}</strong>, pero esta cuenta no está autorizada
+            Entró como <strong className="font-semibold">{usernameFromEmail(ctx.user.email) ?? ctx.user.email}</strong>, pero esta cuenta no está autorizada
             para editar el sitio. Si cree que es un error, escriba a GOCAS para que le den acceso.
           </>
         ) : (
-          "Por seguridad, vuelva a entrar con su correo y contraseña."
+          "Por seguridad, vuelva a entrar con su usuario y contraseña."
         )}
       </Notice>
       <form action={signOut} className="mt-6">

@@ -113,7 +113,7 @@ async function main() {
     check("anon NO ve admins", ...denied(r.error, r.data));
   }
   {
-    const r = await anon.from("admins").insert({ user_id: "00000000-0000-0000-0000-000000000000", name: "x" }).select();
+    const r = await anon.from("admins").insert({ user_id: "00000000-0000-0000-0000-000000000000", name: "x", username: "intruso" }).select();
     check("anon NO inserta en admins", ...denied(r.error, r.data));
   }
   {

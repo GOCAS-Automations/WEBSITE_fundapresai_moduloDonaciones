@@ -2,8 +2,8 @@
 
 /**
  * «Usuarios» (solo administrador general): listado de cuentas con nombre,
- * correo, insignia, creación y último ingreso; editar nombre, restablecer
- * contraseña y quitar acceso (modal propio); y crear administrador.
+ * usuario, insignia, creación y último ingreso; editar nombre y usuario,
+ * restablecer contraseña y quitar acceso (modal propio); y crear administrador.
  * Las contraseñas nuevas se muestran una sola vez (OneTimePassword) y nunca
  * vuelven del servidor: se guardan solo en la memoria de esta página.
  */
@@ -14,12 +14,13 @@ import { useEffect, useMemo, useRef, useState, useTransition, type FormEvent } f
 import {
   createPanelUser,
   removePanelUser,
-  renamePanelUser,
   resetPanelUserPassword,
+  updatePanelUser,
 } from "@/app/admin/(panel)/usuarios/actions";
 import { Button, buttonClasses } from "@/components/ui/Button";
 import type { ActionState } from "@/lib/admin/action-state";
 import { PASSWORD_HINT } from "@/lib/admin/password";
+import { normalizeUsername, USERNAME_HINT } from "@/lib/admin/username";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { FormMessage, SubmitButton, TextField, useAdminForm } from "./form";
 import { OneTimePassword, PasswordField } from "./PasswordField";
@@ -28,15 +29,15 @@ import { Section } from "./ui";
 export type PanelUserView = {
   id: string;
   name: string;
-  email: string;
+  username: string;
   isSuper: boolean;
   /** Fechas ya formateadas en el servidor (zona horaria de Colombia). */
   created: string;
   lastSignIn: string | null;
 };
 
-type Secret = { title: string; email: string; password: string };
-type Panel = { id: string; kind: "rename" | "reset" } | null;
+type Secret = { title: string; username: string; password: string };
+type Panel = { id: string; kind: "edit" | "reset" } | null;
 
 const IDLE_MESSAGE: ActionState = { status: "idle", message: "" };
 
@@ -76,14 +77,16 @@ export function UserManager({ users, currentUserId }: { users: PanelUserView[]; 
                     aria-hidden="true"
                     className="hidden size-12 shrink-0 place-items-center rounded-full bg-brand-purple-soft sm:grid text-lg font-semibold text-brand-purple"
                   >
-                    {initials(user.name || user.email)}
+                    {initials(user.name || user.username)}
                   </span>
                   <div className="min-w-0 flex-1">
                     <h3 id={titleId} className="text-xl leading-snug">
                       {user.name || "Sin nombre"}
                       {self && <span className="ml-2 text-base font-normal text-ink-muted">(usted)</span>}
                     </h3>
-                    <p className="break-all text-base text-ink-muted">{user.email}</p>
+                    <p className="break-all text-base text-ink-muted">
+                      Usuario: <span className="font-semibold text-ink">{user.username}</span>
+                    </p>
                     {user.isSuper && (
                       <p className="mt-2">
                         <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-brand-orange-soft px-3 py-0.5 text-base font-semibold text-brand-orange-ink">
@@ -116,11 +119,11 @@ export function UserManager({ users, currentUserId }: { users: PanelUserView[]; 
                       <Button
                         variant="tinted"
                         icon={<Pencil />}
-                        aria-expanded={open === "rename"}
-                        aria-controls={open === "rename" ? panelId : undefined}
-                        onClick={() => setPanel(open === "rename" ? null : { id: user.id, kind: "rename" })}
+                        aria-expanded={open === "edit"}
+                        aria-controls={open === "edit" ? panelId : undefined}
+                        onClick={() => setPanel(open === "edit" ? null : { id: user.id, kind: "edit" })}
                       >
-                        Editar nombre<span className="sr-only"> de {user.name || user.email}</span>
+                        Editar nombre o usuario<span className="sr-only"> de {user.name || user.username}</span>
                       </Button>
                       <Button
                         variant="secondary"
@@ -132,13 +135,13 @@ export function UserManager({ users, currentUserId }: { users: PanelUserView[]; 
                           setPanel(open === "reset" ? null : { id: user.id, kind: "reset" });
                         }}
                       >
-                        Restablecer contraseña<span className="sr-only"> de {user.name || user.email}</span>
+                        Restablecer contraseña<span className="sr-only"> de {user.name || user.username}</span>
                       </Button>
                       {isLastSuper ? (
                         <p className="self-center text-base text-ink-muted">Es el único administrador general.</p>
                       ) : (
                         <Button variant="dangerOutline" icon={<UserX />} onClick={() => setToRemove(user)}>
-                          Quitar acceso<span className="sr-only"> a {user.name || user.email}</span>
+                          Quitar acceso<span className="sr-only"> a {user.name || user.username}</span>
                         </Button>
                       )}
                     </>
@@ -147,8 +150,8 @@ export function UserManager({ users, currentUserId }: { users: PanelUserView[]; 
 
                 {open && (
                   <div id={panelId} className="mt-4 rounded-2xl bg-surface-muted p-4 ring-1 ring-black/[0.05] sm:p-5">
-                    {open === "rename" ? (
-                      <RenameForm
+                    {open === "edit" ? (
+                      <EditUserForm
                         user={user}
                         onCancel={() => setPanel(null)}
                         onDone={(state) => {
@@ -164,8 +167,8 @@ export function UserManager({ users, currentUserId }: { users: PanelUserView[]; 
                           setPanel(null);
                           setSecret({
                             userId: user.id,
-                            title: `Nueva contraseña de ${user.name || user.email}`,
-                            email: user.email,
+                            title: `Nueva contraseña de ${user.name || user.username}`,
+                            username: user.username,
                             password,
                           });
                         }}
@@ -188,7 +191,7 @@ export function UserManager({ users, currentUserId }: { users: PanelUserView[]; 
 
       <ConfirmDialog
         open={toRemove !== null}
-        title={toRemove ? `¿Quitar el acceso a ${toRemove.name || toRemove.email}?` : ""}
+        title={toRemove ? `¿Quitar el acceso a ${toRemove.name || toRemove.username}?` : ""}
         description={
           <>
             Se borrará su usuario y ya no podrá entrar al panel. Las campañas y los textos que haya editado no cambian. Si
@@ -221,10 +224,10 @@ function initials(text: string): string {
 }
 
 // -----------------------------------------------------------------------------
-// Editar nombre
+// Editar nombre y usuario (el usuario cambia también su correo interno en Auth)
 // -----------------------------------------------------------------------------
 
-function RenameForm({
+function EditUserForm({
   user,
   onCancel,
   onDone,
@@ -233,7 +236,7 @@ function RenameForm({
   onCancel: () => void;
   onDone: (state: ActionState) => void;
 }) {
-  const { state, fieldErrors, pending, formRef, onSubmit } = useAdminForm(useMemo(() => renamePanelUser.bind(null, user.id), [user.id]));
+  const { state, fieldErrors, pending, formRef, onSubmit } = useAdminForm(useMemo(() => updatePanelUser.bind(null, user.id), [user.id]));
   useEffect(() => {
     if (state.status === "success") onDone(state);
   }, [state, onDone]);
@@ -248,8 +251,20 @@ function RenameForm({
         error={fieldErrors.name}
         autoFocus
       />
+      <TextField
+        label="Usuario"
+        name="username"
+        defaultValue={user.username}
+        max={30}
+        autoComplete="off"
+        autoCapitalize="none"
+        autoCorrect="off"
+        spellCheck={false}
+        hint={`${USERNAME_HINT} Si lo cambia, avísele: desde ese momento entra con el nuevo (la contraseña no cambia).`}
+        error={fieldErrors.username}
+      />
       <div className="flex flex-col gap-3 sm:flex-row">
-        <SubmitButton pending={pending}>Guardar nombre</SubmitButton>
+        <SubmitButton pending={pending}>Guardar cambios</SubmitButton>
         <Button variant="secondary" size="lg" onClick={onCancel} disabled={pending}>
           Cancelar
         </Button>
@@ -340,19 +355,19 @@ function CreateUserSection() {
 
 function CreateUserForm({ onCreated }: { onCreated: (secret: Secret) => void }) {
   const { state, fieldErrors, pending, formRef, onSubmit } = useAdminForm(createPanelUser);
-  const submitted = useRef<{ name: string; email: string; password: string } | null>(null);
+  const submitted = useRef<{ name: string; username: string; password: string } | null>(null);
 
   useEffect(() => {
     if (state.status !== "success" || !submitted.current) return;
-    const { name, email, password } = submitted.current;
-    onCreated({ title: `Se creó la cuenta de ${name}`, email, password });
+    const { name, username, password } = submitted.current;
+    onCreated({ title: `Se creó la cuenta de ${name}`, username, password });
   }, [state, onCreated]);
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     const data = new FormData(event.currentTarget);
     submitted.current = {
       name: String(data.get("name") ?? "").trim(),
-      email: String(data.get("email") ?? "").trim().toLowerCase(),
+      username: normalizeUsername(String(data.get("username") ?? "")),
       password: String(data.get("password") ?? ""),
     };
     onSubmit(event);
@@ -362,14 +377,15 @@ function CreateUserForm({ onCreated }: { onCreated: (secret: Secret) => void }) 
     <form ref={formRef} onSubmit={handleSubmit} noValidate className="space-y-6">
       <TextField label="Nombre" name="name" max={120} autoComplete="off" hint="Se usa en el saludo del panel." error={fieldErrors.name} />
       <TextField
-        label="Correo"
-        name="email"
-        type="email"
-        inputMode="email"
+        label="Usuario"
+        name="username"
+        max={30}
         autoComplete="off"
         autoCapitalize="none"
+        autoCorrect="off"
         spellCheck={false}
-        error={fieldErrors.email}
+        hint={`${USERNAME_HINT} Ejemplo: maria.perez`}
+        error={fieldErrors.username}
       />
       <PasswordField
         label="Contraseña"

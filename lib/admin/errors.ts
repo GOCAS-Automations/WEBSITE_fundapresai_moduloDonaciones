@@ -29,7 +29,7 @@ export function humanizeError(error: unknown, context?: string): string {
 
   // Auth
   if (code === "invalid_credentials" || msg.includes("invalid login credentials")) {
-    return "El correo o la contraseña no son correctos. Revíselos e intente de nuevo.";
+    return "Usuario o contraseña incorrectos.";
   }
   if (code === "email_not_confirmed" || msg.includes("email not confirmed")) {
     return "Esta cuenta aún no está confirmada. Escriba a GOCAS para activarla.";
@@ -57,7 +57,7 @@ export function humanizeError(error: unknown, context?: string): string {
     return "No pudimos enviar el correo a esa dirección. Revise que esté bien escrita; si sigue pasando, escriba a GOCAS.";
   }
   if (code === "session_not_found" || code === "refresh_token_not_found" || msg.includes("auth session missing")) {
-    return "Su sesión se cerró. Vuelva a entrar con su correo y contraseña.";
+    return "Su sesión se cerró. Vuelva a entrar con su usuario y contraseña.";
   }
   if (code === "otp_expired" || msg.includes("expired")) {
     return "El enlace ya venció o ya se usó. Pida uno nuevo.";

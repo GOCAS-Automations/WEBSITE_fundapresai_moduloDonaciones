@@ -87,12 +87,12 @@ export function PasswordField({ label, name, autoComplete, error, hint, canGener
  */
 export function OneTimePassword({
   title,
-  email,
+  username,
   password,
   onDone,
 }: {
   title: string;
-  email: string;
+  username: string;
   password: string;
   onDone: () => void;
 }) {
@@ -137,8 +137,8 @@ export function OneTimePassword({
       </p>
       <dl className="mt-4 space-y-3 text-base">
         <div>
-          <dt className="text-ink-muted">Correo para entrar</dt>
-          <dd className="break-all font-semibold">{email}</dd>
+          <dt className="text-ink-muted">Usuario para entrar</dt>
+          <dd className="break-all font-semibold">{username}</dd>
         </div>
         <div>
           <dt className="text-ink-muted">Contraseña</dt>

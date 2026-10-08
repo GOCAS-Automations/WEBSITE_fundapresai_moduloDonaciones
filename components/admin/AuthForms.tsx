@@ -30,14 +30,13 @@ export function LoginForm({ recoveryEnabled = false }: { recoveryEnabled?: boole
   return (
     <form ref={formRef} onSubmit={onSubmit} noValidate className="space-y-6">
       <TextField
-        label="Correo"
-        name="email"
-        type="email"
-        inputMode="email"
-        autoComplete="email"
+        label="Usuario"
+        name="username"
+        autoComplete="username"
         autoCapitalize="none"
+        autoCorrect="off"
         spellCheck={false}
-        error={fieldErrors.email}
+        error={fieldErrors.username}
       />
       <PasswordField label="Contraseña" name="password" autoComplete="current-password" error={fieldErrors.password} />
       <SubmitButton pending={pending} pendingLabel="Entrando…" icon={<LogIn />} className="sm:w-full">
