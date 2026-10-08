@@ -7,7 +7,8 @@ import { DEFAULT_DESCRIPTION, DEFAULT_TITLE, LOCALE, SITE_NAME, robotsMetadata }
 import "./globals.css";
 
 const poppins = Poppins({
-  weight: ["300", "400", "500", "600"],
+  // Solo los pesos que se usan (font-normal, font-medium y font-semibold): 300 no se usa en ninguna parte.
+  weight: ["400", "500", "600"],
   subsets: ["latin", "latin-ext"],
   display: "swap",
   variable: "--font-poppins",
