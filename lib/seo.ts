@@ -17,17 +17,27 @@ export const LOCALE = "es_CO";
 /** Tamaño de las imágenes para redes que genera el sitio (lib/og.ts). */
 export const OG_SIZE = { width: 1200, height: 630 } as const;
 
-/** Imagen de marca para redes (1200×630, JPEG), generada en /og/fundapresai.jpg. */
+/**
+ * Imagen de marca para redes (1200×630, JPEG de ~100 KB): archivo estático
+ * public/og/fundapresai.jpg (npm run brand:share). URL estable.
+ */
 export const BRAND_OG_IMAGE = {
   url: "/og/fundapresai.jpg",
-  alt: "Fundapresai, Inspirando vidas en valores",
+  alt: "Logo de Fundapresai, «Inspirando vidas en valores»: ¿Se siente inspirado? Su aporte transformará vidas.",
   ...OG_SIZE,
   type: "image/jpeg",
 } as const;
 
 /**
- * Imagen para redes de una campaña: su portada recortada a 1200×630 en JPEG
- * (WhatsApp no siempre muestra WebP). `v` cambia con cada edición para que
+ * Logo para buscadores (JSON-LD de la organización): PNG cuadrado de 512 px
+ * sobre blanco (Google pide al menos 112×112 y que se vea bien en blanco).
+ */
+export const BRAND_LOGO = { url: "/brand/logo-google.png", width: 512, height: 512 } as const;
+
+/**
+ * Imagen para redes de una campaña: su portada completa, con la insignia del
+ * logo, en JPEG de 1200×630 (lib/og.ts; WhatsApp no siempre muestra WebP).
+ * `v` cambia con cada edición para que
  * WhatsApp y Facebook no sigan mostrando una portada vieja.
  */
 export function campaignOgImage(campaign: { slug: string; updated_at: string; cover_image_alt: string }) {
@@ -95,18 +105,18 @@ export function buildMetadata({ title, absoluteTitle, description, path, image, 
 }
 
 type OrgInput = {
-  logoPath?: string;
   phone?: string | null;
   email?: string | null;
   city?: string | null;
   sameAs?: (string | null | undefined)[];
 };
 
-/** Identificador de la organización: el WebPage de cada campaña la referencia. */
+/** Identificadores: el WebPage de cada campaña referencia a la organización y al sitio. */
 const ORG_ID = "/#organizacion";
+const WEBSITE_ID = "/#sitio";
 
 /** JSON-LD NGO para la landing. */
-export function ngoJsonLd({ logoPath = "/brand/logo-vertical.png", phone, email, city, sameAs = [] }: OrgInput) {
+export function ngoJsonLd({ phone, email, city, sameAs = [] }: OrgInput) {
   return {
     "@context": "https://schema.org",
     "@type": "NGO",
@@ -116,7 +126,15 @@ export function ngoJsonLd({ logoPath = "/brand/logo-vertical.png", phone, email,
     slogan: "Inspirando vidas en valores",
     description: DEFAULT_DESCRIPTION,
     url: absoluteUrl("/"),
-    logo: absoluteUrl(logoPath),
+    logo: {
+      "@type": "ImageObject",
+      "@id": absoluteUrl("/#logo"),
+      url: absoluteUrl(BRAND_LOGO.url),
+      contentUrl: absoluteUrl(BRAND_LOGO.url),
+      width: BRAND_LOGO.width,
+      height: BRAND_LOGO.height,
+      caption: ORGANIZATION_NAME,
+    },
     image: absoluteUrl(BRAND_OG_IMAGE.url),
     ...(city ? { address: { "@type": "PostalAddress", addressLocality: city, addressCountry: "CO" } } : {}),
     ...(phone || email
@@ -134,6 +152,23 @@ export function ngoJsonLd({ logoPath = "/brand/logo-vertical.png", phone, email,
   };
 }
 
+/**
+ * JSON-LD WebSite para la landing: Google lo usa para el NOMBRE del sitio en
+ * los resultados («Fundapresai» en vez del dominio).
+ */
+export function websiteJsonLd() {
+  return {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "@id": absoluteUrl(WEBSITE_ID),
+    name: SITE_NAME,
+    alternateName: ORGANIZATION_NAME,
+    url: absoluteUrl("/"),
+    inLanguage: "es-CO",
+    publisher: { "@id": absoluteUrl(ORG_ID) },
+  };
+}
+
 type CampaignLd = { slug: string; title: string; description: string; image?: string | null; donationUrl: string };
 
 /** JSON-LD WebPage con DonateAction para el detalle de campaña. */
@@ -148,7 +183,7 @@ export function campaignJsonLd({ slug, title, description, image, donationUrl }:
     name: title,
     description,
     inLanguage: "es-CO",
-    isPartOf: { "@type": "WebSite", name: SITE_NAME, url: absoluteUrl("/") },
+    isPartOf: { "@type": "WebSite", "@id": absoluteUrl(WEBSITE_ID), name: SITE_NAME, url: absoluteUrl("/") },
     publisher: org,
     ...(image ? { primaryImageOfPage: { "@type": "ImageObject", url: image } } : {}),
     potentialAction: {

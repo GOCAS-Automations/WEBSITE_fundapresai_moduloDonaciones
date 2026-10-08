@@ -7,7 +7,7 @@ import { Hero } from "@/components/landing/Hero";
 import { HowToDonate } from "@/components/landing/HowToDonate";
 import { getActiveCampaigns, getSiteSettings } from "@/lib/content";
 import { phoneDigits } from "@/lib/links";
-import { BRAND_OG_IMAGE, buildMetadata, jsonLdScript, ngoJsonLd } from "@/lib/seo";
+import { BRAND_OG_IMAGE, buildMetadata, jsonLdScript, ngoJsonLd, websiteJsonLd } from "@/lib/seo";
 import type { Hero as HeroContent } from "@/lib/validations";
 
 /** Respaldo si site_settings no se puede leer (el sitio nunca queda en blanco). */
@@ -57,6 +57,7 @@ export default async function HomePage() {
 
   return (
     <main id="contenido">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(websiteJsonLd()) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(organization) }} />
       <Hero content={settings?.hero ?? FALLBACK_HERO} featured={featured} />
       <CampaignsSection campaigns={campaigns} />
