@@ -48,6 +48,7 @@ import { chromium, type Browser, type BrowserContext, type Page } from "playwrig
 import sharp from "sharp";
 
 import { usernameToEmail } from "../lib/admin/username";
+import { IMAGE_VARIANT_WIDTHS, variantPaths } from "../lib/image-variants";
 import type { Database } from "../lib/supabase/database.types";
 import { readCredentials } from "./lib/accounts";
 import { assertLocalhost, CHROME, fullPageShot, runAxe, runChecks, settle } from "./lib/browser";
@@ -464,6 +465,25 @@ async function main() {
         row?.cover_image_url?.replace(SB_URL, "") ?? "sin fila",
       );
 
+      // Fase 6: el panel subió también las variantes de 640, 1080 y 1600 px y el sitio las usa
+      // en el srcset (ninguna imagen pasa por /_next/image).
+      const coverPath = row?.cover_image_url?.split("/storage/v1/object/public/media/")[1] ?? "";
+      const media = await listMedia();
+      const variants = variantPaths(coverPath);
+      const widths = await Promise.all(
+        variants.map(async (p) => {
+          const { data } = await service.storage.from("media").download(p);
+          return data ? ((await sharp(Buffer.from(await data.arrayBuffer())).metadata()).width ?? 0) : 0;
+        }),
+      );
+      const landingHtml = (await fetchPublic("/")).body;
+      check(
+        "3. Al subir se crean las variantes (640, 1080, 1600) y el srcset las usa, sin /_next/image",
+        variants.every((p) => media.includes(p)) && widths.every((w, i) => w > 0 && w <= IMAGE_VARIANT_WIDTHS[i]) &&
+          landingHtml.includes(variants[0].split("/").pop()!) && !landingHtml.includes("/_next/image"),
+        `${variants.map((p, i) => `${p.split("/").pop()} (${widths[i]} px)`).join(", ")}`,
+      );
+
       // Fase 3: la campaña nueva tiene su detalle (sin redeploy), sale en el sitemap y tiene imagen para redes.
       const detail = await detailText(ctx, slug);
       const detailHtml = (await fetchPublic(`/campanas/${slug}`)).body;
@@ -519,12 +539,13 @@ async function main() {
         `src en / = ${src?.slice(0, 50)}`,
       );
 
-      // La foto subida quedó huérfana (ninguna campaña ni bloque la usa): se borró del bucket.
+      // La foto subida quedó huérfana (ninguna campaña ni bloque la usa): se borró del bucket, con sus variantes.
       const media = await listMedia();
+      const leftovers = [uploadedPath, ...variantPaths(uploadedPath)].filter((p) => media.includes(p));
       check(
-        "3. La imagen reemplazada se borra del bucket",
-        Boolean(uploadedPath) && !media.includes(uploadedPath),
-        uploadedPath ? `${uploadedPath} ${media.includes(uploadedPath) ? "sigue" : "borrada"}` : "sin ruta subida",
+        "3. La imagen reemplazada se borra del bucket (con sus variantes)",
+        Boolean(uploadedPath) && leftovers.length === 0,
+        uploadedPath ? `${uploadedPath}: ${leftovers.length ? `siguen ${leftovers.join(", ")}` : "borrada con sus 3 variantes"}` : "sin ruta subida",
       );
     });
 
@@ -599,6 +620,8 @@ async function main() {
       await page.getByRole("button", { name: "Sí, eliminar" }).click();
       await page.getByText(`Se eliminó la campaña «${title}».`).waitFor({ timeout: 25000 });
       const gone = !(await readCampaigns()).some((c) => c.slug === slug);
+      // El aviso llega con la respuesta de la acción; la lista se repinta un instante después.
+      await page.getByRole("heading", { name: title }).waitFor({ state: "detached", timeout: 15000 }).catch(() => {});
       const inList = await page.getByRole("heading", { name: title }).count();
       check(
         "3. Eliminar con modal propio (Esc, foco atrapado, aria-modal)",
@@ -1184,6 +1207,8 @@ async function main() {
             r.h1Count !== 1 && `${r.h1Count} h1`,
             r.smallText.length > 0 && `texto < 16 px: ${r.smallText.join(" | ")}`,
             r.smallTargets.length > 0 && `tocables < 48 px: ${r.smallTargets.join(" | ")}`,
+            // Fase 6: ninguna imagen del panel pasa por el optimizador de Vercel.
+            (await cp.content()).includes("/_next/image") && "usa /_next/image",
           ].filter(Boolean) as string[];
           if (c.width === 375 || c.width === 1440) {
             const v = await runAxe(cp);
