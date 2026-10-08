@@ -1,4 +1,4 @@
-import { getCampaignBySlug } from "@/lib/content";
+import { getActiveCampaigns, getCampaignBySlug } from "@/lib/content";
 import { getBrandOgImage, getCampaignOgImage } from "@/lib/og";
 import { SLUG_PATTERN } from "@/lib/validations";
 
@@ -8,7 +8,18 @@ import { SLUG_PATTERN } from "@/lib/validations";
  * mucho tiempo. Campaña inexistente u oculta → 404. Si la portada no se pudo
  * descargar, se sirve la imagen de la marca para que la vista previa no quede
  * vacía.
+ *
+ * ESTÁTICA: generateStaticParams la genera en el build para cada campaña
+ * activa (sharp corre una vez, no en cada petición); una campaña nueva se
+ * genera en su primera visita y queda guardada. El panel la invalida con las
+ * mismas etiquetas que el detalle (getCampaignOgImage usa cacheTag).
  */
+export async function generateStaticParams() {
+  const campaigns = await getActiveCampaigns();
+  // Con Cache Components debe haber al menos un parámetro: sin campañas, uno de relleno (da 404).
+  return campaigns.length > 0 ? campaigns.map((c) => ({ archivo: `${c.slug}.jpg` })) : [{ archivo: "sin-campanas.jpg" }];
+}
+
 export async function GET(_request: Request, { params }: RouteContext<"/og/campanas/[archivo]">) {
   const { archivo } = await params;
   const slug = archivo.endsWith(".jpg") ? archivo.slice(0, -4) : "";
