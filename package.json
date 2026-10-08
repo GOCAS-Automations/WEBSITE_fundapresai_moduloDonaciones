@@ -23,6 +23,7 @@
     "test:rls": "tsx scripts/test-rls.ts",
     "shots": "tsx scripts/screenshot.ts",
     "check:seo": "tsx scripts/check-seo.ts",
+    "check:scroll": "tsx scripts/check-scroll.ts",
     "test:admin": "tsx scripts/e2e-admin.ts"
   },
   "dependencies": {
