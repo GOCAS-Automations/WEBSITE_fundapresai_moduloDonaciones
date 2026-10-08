@@ -36,7 +36,7 @@ export function About({ content, city }: AboutProps) {
     <section id="quienes-somos" aria-labelledby="quienes-somos-title" className="bg-[#fdf8ef] py-20 lg:py-28">
       <Container className="grid items-start gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-20">
         <div>
-          <SectionHeading id="quienes-somos-title" eyebrow="Fundapresai" title={content.title} />
+          <SectionHeading id="quienes-somos-title" focusTarget eyebrow="Fundapresai" title={content.title} />
           <MarkdownContent variant="inline" className="mt-6 max-w-[38rem]">
             {content.body_md}
           </MarkdownContent>

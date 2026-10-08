@@ -2,7 +2,8 @@ import type { ReactNode } from "react";
 
 import { SiteFooter } from "@/components/site/SiteFooter";
 import { SiteHeader } from "@/components/site/SiteHeader";
-import { getCopyrightYear, getSiteSettings } from "@/lib/content";
+import { getActiveCampaigns, getCopyrightYear, getSiteSettings } from "@/lib/content";
+import { donationHref } from "@/lib/links";
 
 /**
  * Marco de las páginas públicas: enlace para saltar al contenido, header fijo
@@ -11,7 +12,9 @@ import { getCopyrightYear, getSiteSettings } from "@/lib/content";
  * impide que las páginas se prerendericen como estáticas.
  */
 export async function SiteFrame({ children }: { children: ReactNode }) {
-  const [settings, year] = await Promise.all([getSiteSettings(), getCopyrightYear()]);
+  const [settings, year, campaigns] = await Promise.all([getSiteSettings(), getCopyrightYear(), getActiveCampaigns()]);
+  // «Donar» del header en el detalle de cada campaña: su propio enlace de donación.
+  const donateCampaigns = campaigns.map((c) => ({ slug: c.slug, title: c.title, href: donationHref(c.donation_url, c.slug) }));
 
   return (
     <>
@@ -21,7 +24,7 @@ export async function SiteFrame({ children }: { children: ReactNode }) {
       >
         Saltar al contenido
       </a>
-      <SiteHeader />
+      <SiteHeader donateCampaigns={donateCampaigns} />
       {children}
       <SiteFooter contact={settings?.contact ?? null} socials={settings?.socials ?? null} year={year} />
     </>

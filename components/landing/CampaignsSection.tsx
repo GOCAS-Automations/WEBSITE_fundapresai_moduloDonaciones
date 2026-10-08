@@ -38,7 +38,7 @@ export function CampaignsSection({ campaigns }: { campaigns: PublicCampaign[] })
   return (
     <section id="campanas" aria-labelledby="campanas-title" className="bg-surface-muted pb-20 pt-12 lg:pb-28 lg:pt-16">
       <Container>
-        <SectionHeading id="campanas-title" eyebrow="Campañas" title="Elija la campaña que quiere apoyar">
+        <SectionHeading id="campanas-title" focusTarget eyebrow="Campañas" title="Elija la campaña que quiere apoyar">
           <p>
             Todas sostienen la educación gratuita de los niños y niñas del Colegio de Valores Humanos Sathya Sai.
             Toque «Donar» en la que prefiera.

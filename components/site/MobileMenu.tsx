@@ -5,6 +5,7 @@ import { useEffect, useId, useRef, useState } from "react";
 
 import { buttonClasses } from "@/components/ui/Button";
 import { HELP_NAV, MAIN_NAV } from "./nav";
+import { SectionLink } from "./SectionLinks";
 
 /**
  * Menú del celular: botón con TEXTO («Menú» / «Cerrar»), no solo un ícono
@@ -60,15 +61,15 @@ export function MobileMenu() {
         >
           <ul className="divide-y divide-separator/70">
             {links.map((link) => (
-              <li key={link.href}>
-                <a
-                  href={link.href}
+              <li key={link.section}>
+                <SectionLink
+                  section={link.section}
                   onClick={() => setOpen(false)}
                   className="flex min-h-14 items-center justify-between gap-3 rounded-2xl px-4 py-3 text-lg font-medium text-ink transition-colors hover:bg-brand-purple-soft hover:text-brand-purple"
                 >
                   {link.label}
                   <ChevronRight aria-hidden="true" className="size-6 shrink-0 text-brand-purple" />
-                </a>
+                </SectionLink>
               </li>
             ))}
           </ul>

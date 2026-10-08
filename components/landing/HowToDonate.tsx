@@ -17,7 +17,7 @@ export function HowToDonate({ content }: { content: HowToDonateContent }) {
   return (
     <section id="como-donar" aria-labelledby="como-donar-title" className="bg-surface py-20 lg:py-28">
       <Container>
-        <SectionHeading id="como-donar-title" eyebrow="Cómo donar" title={content.title} align="center" />
+        <SectionHeading id="como-donar-title" focusTarget eyebrow="Cómo donar" title={content.title} align="center" />
 
         <ol className="mt-12 grid gap-5 lg:mt-14 lg:grid-cols-3 lg:gap-7">
           {content.steps.map((step, index) => {

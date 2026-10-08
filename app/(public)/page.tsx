@@ -5,6 +5,7 @@ import { CampaignsSection } from "@/components/landing/CampaignsSection";
 import { HelpBlock } from "@/components/landing/HelpBlock";
 import { Hero } from "@/components/landing/Hero";
 import { HowToDonate } from "@/components/landing/HowToDonate";
+import { SectionHashFocus } from "@/components/site/SectionLinks";
 import { getActiveCampaigns, getSiteSettings } from "@/lib/content";
 import { phoneDigits } from "@/lib/links";
 import { BRAND_OG_IMAGE, buildMetadata, jsonLdScript, ngoJsonLd, websiteJsonLd } from "@/lib/seo";
@@ -64,6 +65,7 @@ export default async function HomePage() {
       {settings?.howToDonate && <HowToDonate content={settings.howToDonate} />}
       {settings?.about && <About content={settings.about} city={settings.contact?.city ?? null} />}
       {settings?.help && <HelpBlock content={settings.help} contact={settings.contact} />}
+      <SectionHashFocus />
     </main>
   );
 }

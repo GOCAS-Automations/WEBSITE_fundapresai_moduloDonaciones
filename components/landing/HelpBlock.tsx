@@ -41,7 +41,7 @@ export function HelpBlock({ content, contact }: HelpBlockProps) {
               >
                 <HeartHandshake className="size-8" strokeWidth={1.75} />
               </span>
-              <h2 id="ayuda-title" className="mt-6 text-3xl tracking-[-0.02em] sm:text-4xl">
+              <h2 id="ayuda-title" tabIndex={-1} className="mt-6 text-3xl tracking-[-0.02em] sm:text-4xl">
                 {content.title}
               </h2>
               <p className="mt-4 max-w-xl text-lg text-ink-muted">{content.text}</p>
