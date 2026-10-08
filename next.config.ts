@@ -73,6 +73,10 @@ const nextConfig: NextConfig = {
   // NEXT_BUILD_CPUS=1 los limita a mano. En Vercel no cambia nada visible.
   experimental: {
     memoryBasedWorkersCount: true,
+    // Sin caché en disco de Turbopack para `next build` (activa por defecto en Next 16.4): el
+    // 2026-10-08 sirvió un CSS viejo tras editar globals.css (el loader de Tailwind no se
+    // invalidó). Vercel restaura .next/cache entre despliegues, así que podría pasar allí.
+    turbopackFileSystemCacheForBuild: false,
     ...(Number(process.env.NEXT_BUILD_CPUS) > 0 ? { cpus: Number(process.env.NEXT_BUILD_CPUS) } : {}),
   },
   // lib/og.ts lee estos archivos de public/ al armar la imagen para redes de
