@@ -1,11 +1,11 @@
-import { ChevronRight, ExternalLink, Megaphone, PencilLine } from "lucide-react";
+import { ChevronRight, ExternalLink, Megaphone, PencilLine, UserRound, Users } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { AdminContainer, Notice } from "@/components/admin/ui";
 import { cn } from "@/components/ui/cn";
-import { getAdminContext } from "@/lib/admin/session";
+import { getAdminContext, getIsSuperAdmin } from "@/lib/admin/session";
 
 export const metadata: Metadata = { title: "Inicio" };
 
@@ -75,11 +75,12 @@ export default async function AdminHomePage({ searchParams }: PageProps<"/admin"
   const ctx = await getAdminContext();
   if (!ctx.ok) return null;
 
-  const [{ data: admin }, heartbeat, { data: campaigns }, params] = await Promise.all([
+  const [{ data: admin }, heartbeat, { data: campaigns }, params, isSuper] = await Promise.all([
     ctx.supabase.from("admins").select("name").eq("user_id", ctx.user.id).maybeSingle(),
     ctx.supabase.rpc("last_heartbeat"),
     ctx.supabase.from("campaigns").select("status"),
     searchParams,
+    getIsSuperAdmin(),
   ]);
 
   const firstName = admin?.name?.trim().split(/\s+/)[0];
@@ -123,6 +124,26 @@ export default async function AdminHomePage({ searchParams }: PageProps<"/admin"
               description={`${plural(active, "activa", "activas")}${others ? ` · ${plural(others, "sin publicar", "sin publicar")}` : ""}. Crear, editar, ordenar u ocultar.`}
               icon={<Megaphone />}
               tint="bg-brand-orange-soft text-brand-orange-ink"
+            />
+          </li>
+          {isSuper && (
+            <li>
+              <Tile
+                href="/admin/usuarios"
+                title="Usuarios"
+                description="Crear cuentas, restablecer contraseñas y quitar accesos del panel."
+                icon={<Users />}
+                tint="bg-success-bg text-success-ink"
+              />
+            </li>
+          )}
+          <li>
+            <Tile
+              href="/admin/cuenta"
+              title="Mi cuenta"
+              description="Cambiar su contraseña o su nombre."
+              icon={<UserRound />}
+              tint="bg-neutral-bg text-ink"
             />
           </li>
           <li>

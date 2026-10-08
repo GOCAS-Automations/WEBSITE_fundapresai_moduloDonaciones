@@ -1,11 +1,15 @@
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, UserRound } from "lucide-react";
 import Link from "next/link";
 
 import { signOut } from "@/app/admin/actions";
 import { LeafSymbol } from "@/components/brand/LeafSymbol";
 import { SignOutButton } from "./SignOutButton";
 
-/** Barra superior translúcida del panel (estilo iOS). Sin datos del usuario: es parte del shell estático. */
+/**
+ * Barra superior translúcida del panel (estilo iOS). Sin datos del usuario: es
+ * parte del shell estático. En celular no cabe todo: «Cerrar sesión» pasa a
+ * «Mi cuenta» (que siempre está en la barra).
+ */
 export function AdminHeader() {
   return (
     <header className="sticky top-0 z-40 border-b border-black/[0.06] bg-white/80 backdrop-blur-xl backdrop-saturate-150">
@@ -28,7 +32,14 @@ export function AdminHeader() {
           <ExternalLink aria-hidden="true" className="size-5" />
           Ver sitio<span className="sr-only"> (se abre en otra pestaña)</span>
         </a>
-        <form action={signOut}>
+        <Link
+          href="/admin/cuenta"
+          className="inline-flex min-h-12 items-center gap-2 rounded-xl px-3 text-base font-semibold text-brand-purple hover:bg-brand-purple-soft"
+        >
+          <UserRound aria-hidden="true" className="size-5" />
+          Mi cuenta
+        </Link>
+        <form action={signOut} className="hidden sm:block">
           <SignOutButton />
         </form>
       </div>

@@ -39,7 +39,7 @@ export function humanizeError(error: unknown, context?: string): string {
     return "La nueva contraseña debe ser distinta de la anterior.";
   }
   if (code === "weak_password" || msg.includes("password should be")) {
-    return "La contraseña es muy débil. Use al menos 8 caracteres, mezclando letras y números.";
+    return "La contraseña es muy débil. Use al menos 10 caracteres, mezclando letras y números.";
   }
   if (
     code === "over_request_rate_limit" ||
