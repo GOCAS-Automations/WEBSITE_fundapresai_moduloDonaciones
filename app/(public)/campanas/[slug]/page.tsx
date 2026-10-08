@@ -114,7 +114,7 @@ export default async function CampaignPage({ params }: PageProps<"/campanas/[slu
                     src={campaign.cover_image_url}
                     alt={campaign.cover_image_alt}
                     sizes="(min-width: 1280px) 600px, (min-width: 1024px) 46vw, calc(100vw - 40px)"
-                    fetchPriority="high"
+                    preload
                   />
                   {campaign.is_featured && (
                     <span className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-white/92 px-3.5 py-1 text-sm font-semibold text-brand-purple-dark shadow-soft backdrop-blur-sm">

@@ -10,15 +10,20 @@ type CampaignCoverProps = {
   /** Atributo `sizes` de next/image: el ancho real con que se muestra la imagen. */
   sizes: string;
   className?: string;
-  /** Solo para la imagen que sea el LCP de la página. */
+  /**
+   * Imagen principal (LCP) que solo existe en algunos anchos (p. ej. la tarjeta
+   * del hero en escritorio): se pide primero y sin carga diferida.
+   */
   fetchPriority?: "high" | "auto";
+  /** LCP en todos los anchos (portada del detalle): además se precarga desde el <head>. */
+  preload?: boolean;
 };
 
 /**
  * Portada de campaña (llena su contenedor, que define la relación 16:10).
  * Sin portada, muestra una composición con la paleta y el símbolo.
  */
-export function CampaignCover({ src, alt, sizes, className, fetchPriority }: CampaignCoverProps) {
+export function CampaignCover({ src, alt, sizes, className, fetchPriority, preload }: CampaignCoverProps) {
   if (!src) {
     return (
       <div
@@ -37,7 +42,7 @@ export function CampaignCover({ src, alt, sizes, className, fetchPriority }: Cam
       alt={alt}
       fill
       sizes={sizes}
-      fetchPriority={fetchPriority}
+      {...(preload ? { preload: true } : fetchPriority === "high" ? { fetchPriority, loading: "eager" as const } : { fetchPriority })}
       unoptimized={shouldSkipOptimization(src)}
       className={cn("object-cover", className)}
     />
