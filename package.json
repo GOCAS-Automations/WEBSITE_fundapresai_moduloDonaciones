@@ -19,6 +19,7 @@
     "auth:configure": "tsx scripts/configure-auth.ts",
     "test:rls": "tsx scripts/test-rls.ts",
     "shots": "tsx scripts/screenshot.ts",
+    "check:seo": "tsx scripts/check-seo.ts",
     "test:admin": "tsx scripts/e2e-admin.ts"
   },
   "dependencies": {

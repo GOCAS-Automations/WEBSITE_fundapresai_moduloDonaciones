@@ -1,5 +1,6 @@
 /**
- * Prueba de punta a punta del panel (fase 4) contra el sitio LOCAL.
+ * Prueba de punta a punta del panel (fase 4) y de su efecto en el sitio
+ * público (fase 3: detalle de campaña, 404 y sitemap) contra el sitio LOCAL.
  *
  * Uso:  npm run build && npm run start   (en otra terminal)
  *       npm run test:admin [-- --backup backups/AAAA-MM-DD_HHMM] [-- --no-shots]
@@ -8,7 +9,9 @@
  *    en memoria): uno administrador (en `admins`) y otro autenticado sin permisos.
  * 2. Prueba: redirección sin sesión, login, editar el hero y verlo en `/`,
  *    crear una campaña con imagen subida y luego con imagen por URL (y Drive),
- *    ocultarla, borrarla con el modal, reordenar, cambiar la destacada,
+ *    ver su detalle, editar el resumen y la dirección (detalle, 404 y sitemap),
+ *    ocultarla (404 y fuera del sitemap), borrarla con el modal, reordenar,
+ *    que la imagen reemplazada se borre del bucket, cambiar la destacada,
  *    recuperación de contraseña (token_hash) y que el usuario sin permisos no
  *    pueda guardar nada (ni por el panel ni por la API).
  * 3. Capturas a 375 y 1440 px en ../Capturas/fase4 y chequeos de accesibilidad.
@@ -199,6 +202,28 @@ async function publicCampaignTitles(ctx: BrowserContext): Promise<string[]> {
   return titles.map((t) => t.trim());
 }
 
+/** GET al sitio público (sin navegador): estado y cuerpo. */
+async function fetchPublic(pathname: string): Promise<{ status: number; body: string; type: string }> {
+  const res = await fetch(`${BASE}${pathname}`, { redirect: "manual" });
+  const type = res.headers.get("content-type") ?? "";
+  const body = type.startsWith("image/") ? "" : await res.text();
+  return { status: res.status, body, type };
+}
+/** Rutas de campañas que lista /sitemap.xml. */
+async function sitemapCampaigns(): Promise<string[]> {
+  const { body } = await fetchPublic("/sitemap.xml");
+  return [...body.matchAll(/<loc>[^<]*\/campanas\/([^<]+)<\/loc>/g)].map((m) => m[1]);
+}
+/** Texto del <h1> y del primer párrafo bajo él en el detalle. */
+async function detailText(ctx: BrowserContext, slug: string): Promise<{ status: number; h1: string; summary: string }> {
+  const page = await ctx.newPage();
+  const res = await page.goto(`/campanas/${slug}`, { waitUntil: "domcontentloaded" });
+  const h1 = (await page.locator("h1").first().innerText()).trim();
+  const summary = (await page.locator("h1 + p").first().innerText().catch(() => "")).trim();
+  await page.close();
+  return { status: res?.status() ?? 0, h1, summary };
+}
+
 async function waitStatus(page: Page, scope: string, text: string | RegExp, timeout = 25000) {
   await page.locator(`${scope} [role=status]`).filter({ hasText: text }).first().waitFor({ timeout });
 }
@@ -281,8 +306,12 @@ async function main() {
       await hero.getByLabel("Título principal").fill(heroTitle);
       await hero.getByRole("button", { name: "Guardar portada" }).click();
       await page.locator("#portada [role=status]").filter({ hasText: "Se guardó" }).first().waitFor();
-      await page.waitForTimeout(500);
-      const restored = (await publicText(ctx, "#hero-title")).trim();
+      // El aviso «Se guardó» del primer guardado puede seguir visible: se espera a ver el título restaurado.
+      let restored = "";
+      for (let i = 0; i < 20 && restored !== heroTitle; i++) {
+        await page.waitForTimeout(500);
+        restored = (await publicText(ctx, "#hero-title")).trim();
+      }
       const dbHero = (await readSettings()).hero;
       check(
         "2. Editar el título del hero se ve en / y se restaura",
@@ -300,6 +329,29 @@ async function main() {
       const err = await hero.getByText("Escriba el subtítulo.").count();
       const focused = await page.evaluate(() => document.activeElement?.getAttribute("name"));
       check("2b. Validación Zod en español", err === 1 && focused === "subtitle", `foco en ${focused}`);
+      await page.reload();
+    });
+
+    // Fase 3: la imagen de «Quiénes somos» exige descripción; la portada explica cuándo se ve su imagen.
+    await step("2c. Imagen sin descripción no se guarda y la portada explica su imagen", async () => {
+      await page.goto("/admin/contenido");
+      const hero = page.locator("#portada");
+      const notice = (await hero.getByText(/se está mostrando/).first().innerText()).replace(/\s+/g, " ");
+      const about = page.locator("#quienes-somos");
+      const photo = about.locator("fieldset", { has: page.locator("legend", { hasText: "Foto de «Quiénes somos»" }) }).first();
+      await photo.getByRole("tab", { name: "Pegar enlace" }).click();
+      await photo.getByLabel("Enlace de la imagen (empieza por https://)").fill(EXTERNAL_IMAGE);
+      await photo.getByRole("button", { name: "Usar este enlace" }).click();
+      await photo.locator("[role=status]").filter({ hasText: "La imagen carga bien" }).first().waitFor({ timeout: 25000 });
+      await about.getByRole("button", { name: "Guardar «Quiénes somos»" }).click();
+      await waitStatus(page, "#quienes-somos", "Revise los campos marcados en rojo");
+      const altError = await about.getByText("Escriba la descripción de la imagen").count();
+      const dbAbout = (await readSettings()).about;
+      check(
+        "2c. Imagen sin descripción no se guarda y la portada explica su imagen",
+        altError === 1 && same(dbAbout, original.about) && /NO se está mostrando/.test(notice),
+        notice.slice(0, 120),
+      );
       await page.reload();
     });
 
@@ -358,11 +410,22 @@ async function main() {
         titles.includes(title) && Boolean(row?.cover_image_url?.includes(`/media/campanas/${slug}-`)) && row?.cover_image_url?.endsWith(".webp") === true,
         row?.cover_image_url?.replace(SB_URL, "") ?? "sin fila",
       );
+
+      // Fase 3: la campaña nueva tiene su detalle (sin redeploy), sale en el sitemap y tiene imagen para redes.
+      const detail = await detailText(ctx, slug);
+      const inSitemap = (await sitemapCampaigns()).includes(slug);
+      const og = await fetchPublic(`/og/campanas/${slug}.jpg`);
+      check(
+        "3. Campaña nueva: detalle 200, en el sitemap e imagen OG en JPEG",
+        detail.status === 200 && detail.h1 === title && inSitemap && og.status === 200 && og.type === "image/jpeg",
+        `detalle ${detail.status}, sitemap ${inSitemap}, og ${og.status} ${og.type}`,
+      );
     });
 
     // --- 3b. Cambiar a imagen por URL (y probar Drive) --------------------------
     await step("3. Imagen por URL: valida https, convierte Drive y comprueba que cargue", async () => {
       const row = (await readCampaigns()).find((c) => c.slug === slug)!;
+      const uploadedPath = row.cover_image_url?.split("/storage/v1/object/public/media/")[1] ?? "";
       await page.goto(`/admin/campanas/${row.id}/editar`);
       const cover = page.locator("fieldset", { has: page.getByText("Portada", { exact: true }) }).first();
       await cover.getByRole("tab", { name: "Pegar enlace" }).click();
@@ -396,6 +459,44 @@ async function main() {
         httpErr === 1 && blocked >= 1 && src === EXTERNAL_IMAGE,
         `src en / = ${src?.slice(0, 50)}`,
       );
+
+      // La foto subida quedó huérfana (ninguna campaña ni bloque la usa): se borró del bucket.
+      const media = await listMedia();
+      check(
+        "3. La imagen reemplazada se borra del bucket",
+        Boolean(uploadedPath) && !media.includes(uploadedPath),
+        uploadedPath ? `${uploadedPath} ${media.includes(uploadedPath) ? "sigue" : "borrada"}` : "sin ruta subida",
+      );
+    });
+
+    // --- 3e. Detalle: editar el resumen y cambiar la dirección -----------------
+    await step("3. Editar el resumen se ve en el detalle al recargar", async () => {
+      const row = (await readCampaigns()).find((c) => c.slug === slug)!;
+      const summary = `Resumen editado por la prueba ${rand}: se ve en el detalle al recargar.`;
+      await page.goto(`/admin/campanas/${row.id}/editar`);
+      await page.getByLabel("Resumen").fill(summary);
+      await page.getByRole("button", { name: "Guardar cambios" }).click();
+      await page.locator("form [role=status]").filter({ hasText: "Cambios guardados" }).last().waitFor({ timeout: 25000 });
+      const detail = await detailText(ctx, slug);
+      check("3. Editar el resumen se ve en el detalle al recargar", detail.summary === summary, `«${detail.summary.slice(0, 50)}…»`);
+    });
+
+    await step("3. Cambiar la dirección: la nueva funciona y la vieja da 404", async () => {
+      const row = (await readCampaigns()).find((c) => c.slug === slug)!;
+      const renamed = `${slug}-nueva`;
+      await page.goto(`/admin/campanas/${row.id}/editar`);
+      await page.getByLabel("Dirección de la página").fill(renamed);
+      await page.getByRole("button", { name: "Guardar cambios" }).click();
+      await page.locator("form [role=status]").filter({ hasText: "Cambios guardados" }).last().waitFor({ timeout: 25000 });
+      const fresh = await fetchPublic(`/campanas/${renamed}`);
+      const old = await fetchPublic(`/campanas/${slug}`);
+      const listed = await sitemapCampaigns();
+      check(
+        "3. Cambiar la dirección: la nueva funciona y la vieja da 404",
+        fresh.status === 200 && old.status === 404 && listed.includes(renamed) && !listed.includes(slug),
+        `nueva ${fresh.status}, vieja ${old.status}, sitemap: ${listed.includes(renamed)}/${listed.includes(slug)}`,
+      );
+      slug = renamed;
     });
 
     // --- 3c. Ocultar ------------------------------------------------------------
@@ -406,6 +507,16 @@ async function main() {
       const titles = await publicCampaignTitles(ctx);
       const badge = await page.locator("li", { hasText: title }).getByText("Oculta", { exact: true }).count();
       check("3. Ocultar con un toque la quita de /", !titles.includes(title) && badge === 1);
+
+      // Fase 3: oculta → su detalle da 404 (página amable), sale del sitemap y de la imagen OG.
+      const detail = await fetchPublic(`/campanas/${slug}`);
+      const listed = await sitemapCampaigns();
+      const og = await fetchPublic(`/og/campanas/${slug}.jpg`);
+      check(
+        "3. Campaña oculta: detalle 404 y fuera del sitemap",
+        detail.status === 404 && detail.body.includes("No encontramos esta página") && !listed.includes(slug) && og.status === 404,
+        `detalle ${detail.status}, en sitemap ${listed.includes(slug)}, og ${og.status}`,
+      );
     });
 
     // --- 3d. Eliminar con el modal ----------------------------------------------
