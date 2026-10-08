@@ -12,10 +12,21 @@
  *    ver su detalle, editar el resumen y la dirección (detalle, 404 y sitemap),
  *    ocultarla (404 y fuera del sitemap), borrarla con el modal, reordenar,
  *    que la imagen reemplazada se borre del bucket, cambiar la destacada,
- *    recuperación de contraseña (token_hash) y que el usuario sin permisos no
- *    pueda guardar nada (ni por el panel ni por la API).
- * 3. Capturas a 375 y 1440 px en ../Capturas/fase4 y chequeos de accesibilidad.
- * 4. SIEMPRE (finally): borra usuarios, campañas e imágenes de prueba, restaura
+ *    recuperación de contraseña (apagada por defecto: las rutas llevan al
+ *    login; con PASSWORD_RECOVERY_ENABLED=true, el flujo token_hash completo)
+ *    y que el usuario sin permisos no pueda guardar nada (ni por el panel ni
+ *    por la API).
+ * 3. Fase 5 (administrador general): con un super admin TEMPORAL, crea un
+ *    administrador desde «Usuarios» (contraseña generada, mostrada una vez y
+ *    copiada), le restablece la contraseña, el admin entra con la nueva, no ve
+ *    «Usuarios» y sus Server Actions de usuarios fallan (ni RLS le deja tocar
+ *    is_super), cambia su propia contraseña en «Mi cuenta» (con la actual mala
+ *    falla) y su nombre, y el super admin quita el acceso con el modal. La
+ *    guarda «último administrador general» se prueba en una transacción que
+ *    se deshace.
+ * 4. Capturas a 375 y 1440 px en ../Capturas/fase4 (y Usuarios, Mi cuenta y
+ *    login en ../Capturas/fase5) y chequeos de accesibilidad con axe.
+ * 5. SIEMPRE (finally): borra usuarios, campañas e imágenes de prueba, restaura
  *    campaigns y site_settings tal como estaban (incluido updated_at) y los
  *    compara con el respaldo JSON (--backup, o el más reciente de backups/).
  */
@@ -43,6 +54,9 @@ const arg = (name: string) => {
 };
 const SHOTS = !process.argv.includes("--no-shots");
 const OUT = path.resolve(ROOT, "..", "Capturas", "fase4");
+const OUT5 = path.resolve(ROOT, "..", "Capturas", "fase5");
+/** La cuenta real de Cesar (administrador general): la prueba nunca la toca. */
+const REAL_SUPER_EMAIL = "cesarxemiliox@gmail.com";
 
 const SB_URL = requireEnv("NEXT_PUBLIC_SUPABASE_URL").replace(/\/+$/, "");
 const opts = { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } };
@@ -249,6 +263,8 @@ async function main() {
   const userEmail = `e2e-usuario-${rand}@example.com`;
   let adminPassword = `${randomBytes(12).toString("base64url")}9a`;
   const userPassword = `${randomBytes(12).toString("base64url")}9a`;
+  const superEmail = `e2e-super-${rand}@example.com`;
+  const superPassword = `${randomBytes(12).toString("base64url")}5c`;
   const userIds: string[] = [];
 
   const browser = await chromium.launch({ executablePath: CHROME, headless: true });
@@ -262,7 +278,12 @@ async function main() {
     userIds.push(u.data.user.id);
     const ins = await service.from("admins").insert({ user_id: a.data.user.id, name: "Prueba Automática" });
     if (ins.error) throw ins.error;
-    console.log("Usuarios temporales creados (admin y no admin).");
+    const sup = await service.auth.admin.createUser({ email: superEmail, password: superPassword, email_confirm: true });
+    if (sup.error) throw sup.error;
+    userIds.push(sup.data.user.id);
+    const insSup = await service.from("admins").insert({ user_id: sup.data.user.id, name: "Súper Temporal", is_super: true });
+    if (insSup.error) throw insSup.error;
+    console.log("Usuarios temporales creados (admin, no admin y administrador general).");
 
     const ctx = await newContext(browser);
     const page = await ctx.newPage();
@@ -544,7 +565,7 @@ async function main() {
       check(
         "3. Eliminar con modal propio (Esc, foco atrapado, aria-modal)",
         modal === "true" && focusStart === "Cancelar" && trapped && stillThere && focusBack.startsWith("Eliminar") && gone && inList === 0,
-        `foco inicial «${focusStart}», Esc conserva: ${stillThere}, foco vuelve a «${focusBack.slice(0, 20)}»`,
+        `foco inicial «${focusStart}», aria-modal=${modal}, foco atrapado=${trapped}, Esc conserva: ${stillThere}, foco vuelve a «${focusBack.slice(0, 20)}», borrada=${gone}, en la lista=${inList}`,
       );
     });
 
@@ -640,7 +661,36 @@ async function main() {
     });
 
     // --- 7. Recuperación de contraseña ---------------------------------------------
-    await step("7. Recuperación de contraseña (token_hash → nueva contraseña)", async () => {
+    const recovery = await fetchPublic("/admin/recuperar");
+    const recoveryEnabled = recovery.status === 200;
+    if (!recoveryEnabled) {
+      await step("7. Recuperación por correo apagada: rutas al login y texto en el login", async () => {
+        const link = await service.auth.admin.generateLink({ type: "recovery", email: adminEmail });
+        if (link.error) throw link.error;
+        const redirects = await Promise.all(
+          ["/admin/recuperar", "/admin/restablecer", `/auth/confirm?token_hash=${link.data.properties.hashed_token}&type=recovery&next=/admin/restablecer`].map(
+            async (path) => {
+              const res = await fetch(`${BASE}${path}`, { redirect: "manual" });
+              return `${res.status} ${new URL(res.headers.get("location") ?? "/", BASE).pathname}`;
+            },
+          ),
+        );
+        const rctx = await newContext(browser);
+        const rp = await rctx.newPage();
+        // Con el enlace real tampoco se abre sesión.
+        await rp.goto(`/auth/confirm?token_hash=${link.data.properties.hashed_token}&type=recovery&next=/admin/restablecer`);
+        const noSession = rp.url().startsWith(`${BASE}/admin/login`);
+        const text = await rp.getByText("¿Olvidó su contraseña? Pídale al administrador general que se la restablezca.").count();
+        const oldLink = await rp.getByRole("link", { name: "¿Olvidó su contraseña?" }).count();
+        await rctx.close();
+        check(
+          "7. Recuperación por correo apagada: rutas al login y texto en el login",
+          redirects.every((r) => r === "307 /admin/login") && noSession && text === 1 && oldLink === 0,
+          redirects.join(" · "),
+        );
+      });
+    } else {
+      await step("7. Recuperación de contraseña (token_hash → nueva contraseña)", async () => {
       const link = await service.auth.admin.generateLink({ type: "recovery", email: adminEmail });
       if (link.error) throw link.error;
       const rctx = await newContext(browser);
@@ -676,6 +726,7 @@ async function main() {
       check("7. «¿Olvidó su contraseña?» responde con un mensaje claro", true, (await msg.innerText()).replace(/\s+/g, " ").slice(0, 120));
       await rctx.close();
     });
+    }
 
     // --- 8. Cerrar sesión --------------------------------------------------------
     await step("8. Cerrar sesión", async () => {
@@ -685,6 +736,274 @@ async function main() {
       await page.goto("/admin");
       check("8. Cerrar sesión", page.url().startsWith(`${BASE}/admin/login`));
     });
+
+    // --- 10. Administrador general: Usuarios y Mi cuenta ----------------------------
+    const newEmail = `e2e-nuevo-${rand}@example.com`;
+    const intruderEmail = `e2e-intruso-${rand}@example.com`;
+    let newPassword = "";
+    let resetPassword = "";
+    const supCtx = await newContext(browser);
+    await supCtx.grantPermissions(["clipboard-read", "clipboard-write"], { origin: BASE });
+    const sp5 = await supCtx.newPage();
+    const accountItem = (name: string) => sp5.locator("#cuentas li").filter({ has: sp5.getByRole("heading", { name, exact: false }) });
+
+    await step("10. El administrador general ve «Usuarios» con la lista de cuentas", async () => {
+      await login(sp5, superEmail, superPassword);
+      await sp5.waitForURL(`${BASE}/admin`, { timeout: 20000 });
+      // El contenido llega por streaming (Suspense): se espera el saludo antes de contar.
+      await sp5.getByRole("heading", { level: 1, name: /^Hola/ }).waitFor({ timeout: 20000 });
+      const tile = await sp5.getByRole("link", { name: /^Usuarios/ }).count();
+      await sp5.goto("/admin/usuarios");
+      const h1 = (await sp5.locator("h1:visible").innerText()).trim();
+      const list = (await sp5.locator("#cuentas").innerText()).replace(/\s+/g, " ");
+      const selfItem = accountItem("Súper Temporal");
+      const selfRemove = await selfItem.getByRole("button", { name: /Quitar acceso/ }).count();
+      check(
+        "10. El administrador general ve «Usuarios» con la lista de cuentas",
+        tile === 1 && h1 === "Usuarios" && list.includes(superEmail) && list.includes(REAL_SUPER_EMAIL) && list.includes(adminEmail) &&
+          list.includes("Administrador general") && list.includes("Último ingreso") && selfRemove === 0 && list.includes("(usted)"),
+        `mosaico=${tile}, h1=${h1}, quitarse a sí mismo=${selfRemove}`,
+      );
+    });
+
+    await step("10. Crear administrador: validación, contraseña generada, mostrada una vez y copiada", async () => {
+      const form = sp5.locator("#crear");
+      await form.getByLabel("Nombre", { exact: true }).fill("Prueba Nueva Cuenta");
+      await form.getByLabel("Correo", { exact: true }).fill(newEmail);
+      await form.getByLabel("Contraseña", { exact: true }).fill("corta1");
+      await form.getByRole("button", { name: "Crear cuenta" }).click();
+      await form.getByText("Use al menos 10 caracteres.").waitFor({ timeout: 20000 });
+      await form.getByRole("button", { name: "Generar contraseña segura" }).click();
+      const generated = await form.getByLabel("Contraseña", { exact: true }).inputValue();
+      await form.getByRole("button", { name: "Crear cuenta" }).click();
+      const card = form.locator("[data-one-time-password]");
+      await card.waitFor({ timeout: 25000 });
+      newPassword = (await card.locator("[data-password]").innerText()).trim();
+      await card.getByRole("button", { name: /Copiar/ }).click();
+      await card.getByText("Se copió la contraseña.").waitFor();
+      const clipboard = await sp5.evaluate(() => navigator.clipboard.readText());
+      if (SHOTS) {
+        mkdirSync(OUT5, { recursive: true });
+        await card.screenshot({ path: path.join(OUT5, "usuarios-contrasena-una-vez-1440.png") });
+      }
+      const emptied = (await form.getByLabel("Correo", { exact: true }).inputValue()) === "";
+      const { data: list } = await service.auth.admin.listUsers({ perPage: 1000 });
+      const created = list.users.find((x) => x.email === newEmail);
+      if (created) userIds.push(created.id);
+      const row = created ? (await service.from("admins").select("name, is_super").eq("user_id", created.id).maybeSingle()).data : null;
+      await card.getByRole("button", { name: "Listo, ya la copié" }).click();
+      const gone = (await form.locator("[data-one-time-password]").count()) === 0;
+      const inList = (await accountItem("Prueba Nueva Cuenta").count()) === 1;
+      check(
+        "10. Crear administrador: validación, contraseña generada, mostrada una vez y copiada",
+        generated.length === 16 && newPassword === generated && clipboard === generated && emptied && gone && inList &&
+          Boolean(created?.email_confirmed_at) && row?.is_super === false && row?.name === "Prueba Nueva Cuenta",
+        `confirmada=${Boolean(created?.email_confirmed_at)}, is_super=${row?.is_super}, en la lista=${inList}, se borró al tocar Listo=${gone}`,
+      );
+
+      // Mismo correo otra vez → aviso claro, sin duplicar.
+      await form.getByLabel("Nombre", { exact: true }).fill("Repetida");
+      await form.getByLabel("Correo", { exact: true }).fill(newEmail.toUpperCase());
+      await form.getByRole("button", { name: "Generar contraseña segura" }).click();
+      await form.getByRole("button", { name: "Crear cuenta" }).click();
+      await form.getByText("Ya existe una cuenta con este correo.").waitFor({ timeout: 20000 });
+      const count = (await service.auth.admin.listUsers({ perPage: 1000 })).data.users.filter((x) => x.email === newEmail).length;
+      check("10. Correo repetido: aviso claro y sin duplicar", count === 1);
+    });
+
+    await step("10. Restablecer la contraseña de otra cuenta (se muestra una vez)", async () => {
+      await sp5.reload();
+      const item = accountItem("Prueba Nueva Cuenta");
+      await item.getByRole("button", { name: /^Restablecer contraseña de/ }).click();
+      await item.getByRole("button", { name: "Generar contraseña segura" }).click();
+      const typed = await item.getByLabel("Nueva contraseña", { exact: true }).inputValue();
+      await item.getByRole("button", { name: "Restablecer contraseña", exact: true }).click();
+      const card = item.locator("[data-one-time-password]");
+      await card.waitFor({ timeout: 25000 });
+      resetPassword = (await card.locator("[data-password]").innerText()).trim();
+      await card.getByRole("button", { name: "Listo, ya la copié" }).click();
+      const probe = createClient<Database>(SB_URL, anonKey, opts);
+      const oldFails = Boolean((await probe.auth.signInWithPassword({ email: newEmail, password: newPassword })).error);
+      check(
+        "10. Restablecer la contraseña de otra cuenta (se muestra una vez)",
+        resetPassword === typed && resetPassword !== newPassword && oldFails && (await item.locator("[data-one-time-password]").count()) === 0,
+        `la anterior ya no sirve=${oldFails}`,
+      );
+    });
+
+    const newCtx = await newContext(browser);
+    const np = await newCtx.newPage();
+    await step("10. El admin nuevo entra con la contraseña restablecida y no ve «Usuarios»", async () => {
+      await login(np, newEmail, resetPassword);
+      await np.waitForURL(`${BASE}/admin`, { timeout: 20000 });
+      const h1 = (await np.locator("h1:visible").innerText()).trim();
+      const tile = await np.getByRole("link", { name: /^Usuarios/ }).count();
+      await np.goto("/admin/usuarios");
+      const h1b = (await np.locator("h1:visible").innerText()).trim();
+      const forms = await np.getByRole("button", { name: /Crear cuenta|Restablecer contraseña|Quitar acceso/ }).count();
+      const emails = await np.getByText(REAL_SUPER_EMAIL).count();
+      check(
+        "10. El admin nuevo entra con la contraseña restablecida y no ve «Usuarios»",
+        h1 === "Hola, Prueba" && tile === 0 && h1b.includes("solo para el administrador general") && forms === 0 && emails === 0,
+        `${h1} · ${h1b}`,
+      );
+    });
+
+    await step("10. Las Server Actions de usuarios rechazan al admin normal (y RLS no le deja tocar admins)", async () => {
+      const superCookies = await supCtx.cookies();
+      const normalCookies = await newCtx.cookies();
+      await sp5.goto("/admin/usuarios");
+      await supCtx.clearCookies();
+      await supCtx.addCookies(normalCookies);
+      // Crear
+      const form = sp5.locator("#crear");
+      await form.getByLabel("Nombre", { exact: true }).fill("Intruso");
+      await form.getByLabel("Correo", { exact: true }).fill(intruderEmail);
+      await form.getByRole("button", { name: "Generar contraseña segura" }).click();
+      await form.getByRole("button", { name: "Crear cuenta" }).click();
+      await form.locator("[role=status]").filter({ hasText: "Solo el administrador general" }).first().waitFor({ timeout: 20000 });
+      // Restablecer la de otra cuenta
+      const other = accountItem("Prueba Automática");
+      await other.getByRole("button", { name: /^Restablecer contraseña de/ }).click();
+      await other.getByRole("button", { name: "Generar contraseña segura" }).click();
+      await other.getByRole("button", { name: "Restablecer contraseña", exact: true }).click();
+      await other.locator("[role=status]").filter({ hasText: "Solo el administrador general" }).first().waitFor({ timeout: 20000 });
+      // Quitar acceso
+      await other.getByRole("button", { name: /Quitar acceso/ }).click();
+      await sp5.getByRole("dialog").getByRole("button", { name: "Sí, quitar acceso" }).click();
+      await sp5.getByRole("dialog").waitFor({ state: "hidden", timeout: 20000 });
+      const removeMsg = (await sp5.locator("main div[tabindex='-1'] > [role=status]").first().innerText()).trim();
+      if (!removeMsg.includes("Solo el administrador general")) throw new Error(`Quitar acceso respondió: «${removeMsg}»`);
+      await supCtx.clearCookies();
+      await supCtx.addCookies(superCookies);
+
+      const intruder = (await service.auth.admin.listUsers({ perPage: 1000 })).data.users.some((x) => x.email === intruderEmail);
+      const probe = createClient<Database>(SB_URL, anonKey, opts);
+      const adminStillWorks = !(await probe.auth.signInWithPassword({ email: adminEmail, password: adminPassword })).error;
+      const adminRow = (await service.from("admins").select("user_id").eq("user_id", a.data.user.id)).data?.length === 1;
+      check(
+        "10. Las Server Actions de usuarios rechazan al admin normal",
+        !intruder && adminStillWorks && adminRow,
+        `creó intruso=${intruder}, contraseña de otro intacta=${adminStillWorks}, acceso de otro intacto=${adminRow}`,
+      );
+
+      // Con la clave pública y su sesión: solo ve su fila y no puede escribir is_super.
+      const sb = createClient<Database>(SB_URL, anonKey, opts);
+      await sb.auth.signInWithPassword({ email: newEmail, password: resetPassword });
+      const rows = await sb.from("admins").select("user_id, is_super");
+      const me = rows.data?.[0]?.user_id ?? "";
+      const promote = await sb.from("admins").update({ is_super: true }).eq("user_id", me).select("user_id");
+      const insertSuper = await sb.from("admins").insert({ user_id: me, name: "x", is_super: true });
+      const isSuper = await sb.rpc("is_super_admin");
+      const anon = createClient<Database>(SB_URL, anonKey, opts);
+      const anonRead = await anon.from("admins").select("user_id");
+      const anonSuper = await anon.rpc("is_super_admin");
+      // scope local: signOut() por defecto cierra TODAS sus sesiones (también la del navegador).
+      await sb.auth.signOut({ scope: "local" });
+      const stillNormal = (await service.from("admins").select("is_super").eq("user_id", me).single()).data?.is_super === false;
+      check(
+        "10. RLS: el admin normal ve solo su fila y no puede volverse administrador general",
+        rows.data?.length === 1 && Boolean(promote.error) && Boolean(insertSuper.error) && isSuper.data === false &&
+          Boolean(anonRead.error) && Boolean(anonSuper.error) && stillNormal,
+        `filas=${rows.data?.length}, update=${promote.error?.code}, insert=${insertSuper.error?.code}, is_super_admin()=${isSuper.data}, anon lee=${anonRead.error?.code}, anon rpc=${anonSuper.error?.code}`,
+      );
+    });
+
+    await step("10. Mi cuenta: con la contraseña actual mala falla; con la buena la cambia; cambia su nombre", async () => {
+      await np.goto("/admin/cuenta");
+      const pass = np.locator("#contrasena");
+      const finalPassword = `${randomBytes(9).toString("base64url")}8Kd`;
+      await pass.getByLabel("Contraseña actual").fill("no-es-la-actual-123");
+      await pass.getByLabel("Nueva contraseña", { exact: true }).fill(finalPassword);
+      await pass.getByLabel("Repita la nueva contraseña").fill(finalPassword);
+      await pass.getByRole("button", { name: "Cambiar contraseña" }).click();
+      await pass.locator("[role=status]").filter({ hasText: "La contraseña actual no es correcta." }).first().waitFor({ timeout: 20000 });
+      const probe = createClient<Database>(SB_URL, anonKey, opts);
+      const unchanged = !(await probe.auth.signInWithPassword({ email: newEmail, password: resetPassword })).error;
+
+      await pass.getByLabel("Contraseña actual").fill(resetPassword);
+      await pass.getByLabel("Nueva contraseña", { exact: true }).fill(finalPassword);
+      await pass.getByLabel("Repita la nueva contraseña").fill(finalPassword);
+      await pass.getByRole("button", { name: "Cambiar contraseña" }).click();
+      await pass.locator("[role=status]").filter({ hasText: "Su contraseña se cambió" }).first().waitFor({ timeout: 20000 });
+      const cleared = (await pass.getByLabel("Contraseña actual").inputValue()) === "";
+      const newWorks = !(await probe.auth.signInWithPassword({ email: newEmail, password: finalPassword })).error;
+      const oldFails = Boolean((await probe.auth.signInWithPassword({ email: newEmail, password: resetPassword })).error);
+      // Sigue con su sesión después del cambio.
+      await np.goto("/admin");
+      const stillIn = (await np.locator("h1:visible").innerText()).startsWith("Hola");
+      check(
+        "10. Mi cuenta: con la contraseña actual mala falla; con la buena la cambia",
+        unchanged && cleared && newWorks && oldFails && stillIn,
+        `mala no cambió=${unchanged}, nueva sirve=${newWorks}, anterior ya no=${oldFails}, sigue con sesión=${stillIn}`,
+      );
+
+      await np.goto("/admin/cuenta");
+      await np.locator("#datos").getByLabel("Su nombre").fill("Nombre Cambiado Prueba");
+      await np.locator("#datos").getByRole("button", { name: "Guardar nombre" }).click();
+      await np.locator("#datos [role=status]").filter({ hasText: "Se guardó su nombre." }).first().waitFor({ timeout: 20000 });
+      await np.goto("/admin");
+      const h1 = (await np.locator("h1:visible").innerText()).trim();
+      check("10. Mi cuenta: cambia su propio nombre (saludo del panel)", h1 === "Hola, Nombre", h1);
+    });
+
+    await step("10. El administrador general edita el nombre de otra cuenta", async () => {
+      await sp5.goto("/admin/usuarios");
+      const item = accountItem("Prueba Automática");
+      await item.getByRole("button", { name: /^Editar nombre/ }).click();
+      await item.getByLabel("Nombre", { exact: true }).fill("Prueba Automática Editada");
+      await item.getByRole("button", { name: "Guardar nombre" }).click();
+      await sp5.locator("[role=status]").filter({ hasText: "Se guardó el nombre «Prueba Automática Editada»." }).first().waitFor({ timeout: 20000 });
+      const row = (await service.from("admins").select("name").eq("user_id", a.data.user.id).single()).data;
+      check("10. El administrador general edita el nombre de otra cuenta", row?.name === "Prueba Automática Editada", row?.name);
+    });
+
+    await step("10. Quitar acceso con el modal propio (Esc cancela) y la cuenta deja de existir", async () => {
+      const item = accountItem("Nombre Cambiado Prueba");
+      await item.getByRole("button", { name: /Quitar acceso/ }).click();
+      const dialog = sp5.getByRole("dialog");
+      await dialog.waitFor();
+      const title = await dialog.getByRole("heading").innerText();
+      await sp5.keyboard.press("Escape");
+      await dialog.waitFor({ state: "hidden" });
+      const stillThere = (await service.from("admins").select("user_id").eq("is_super", false)).data?.length ?? 0;
+      await item.getByRole("button", { name: /Quitar acceso/ }).click();
+      await dialog.getByRole("button", { name: "Sí, quitar acceso" }).click();
+      await sp5.locator("[role=status]").filter({ hasText: "Se quitó el acceso" }).first().waitFor({ timeout: 20000 });
+      const users = (await service.auth.admin.listUsers({ perPage: 1000 })).data.users;
+      const authGone = !users.some((x) => x.email === newEmail);
+      const created = userIds[userIds.length - 1];
+      const rowGone = (await service.from("admins").select("user_id").eq("user_id", created)).data?.length === 0;
+      await accountItem("Nombre Cambiado Prueba").waitFor({ state: "detached", timeout: 15000 }).catch(() => {});
+      const listGone = (await accountItem("Nombre Cambiado Prueba").count()) === 0;
+      // Su sesión abierta ya no sirve.
+      await np.goto("/admin");
+      const after = (await np.locator("h1:visible").innerText()).trim();
+      check(
+        "10. Quitar acceso con el modal propio (Esc cancela) y la cuenta deja de existir",
+        title.startsWith("¿Quitar el acceso a") && stillThere >= 2 && authGone && rowGone && listGone && /sesión se cerró|no tiene acceso/i.test(after),
+        `modal «${title}», sin quitar tras Esc=${stillThere}, Auth borrado=${authGone}, fila borrada=${rowGone}, fuera de la lista=${listGone}, su panel muestra «${after}»`,
+      );
+    });
+    await newCtx.close();
+
+    await step("10. La base impide quedarse sin administrador general (transacción deshecha)", async () => {
+      const pg = new Client(pgClientConfig("fundapresai-e2e-super"));
+      await pg.connect();
+      let message = "";
+      try {
+        await pg.query("begin");
+        await pg.query("delete from public.admins where is_super");
+      } catch (err) {
+        message = err instanceof Error ? err.message : String(err);
+      } finally {
+        await pg.query("rollback").catch(() => {});
+        await pg.end();
+      }
+      const supers = (await service.from("admins").select("user_id").eq("is_super", true)).data?.length ?? 0;
+      check("10. La base impide quedarse sin administrador general (transacción deshecha)", /último administrador general/.test(message) && supers >= 2, message || "no hubo error");
+    });
+    await supCtx.close();
 
     // --- 9. Capturas y chequeos ----------------------------------------------------
     if (SHOTS) {
@@ -750,6 +1069,52 @@ async function main() {
         }
         await cctx.close();
       }
+
+      // Fase 5: Usuarios (administrador general), Mi cuenta y login, con capturas y chequeos.
+      mkdirSync(OUT5, { recursive: true });
+      const pages5 = [
+        { name: "login", path: "/admin/login" },
+        { name: "usuarios", path: "/admin/usuarios" },
+        { name: "mi-cuenta", path: "/admin/cuenta" },
+      ];
+      for (const c of cases) {
+        const shotWidth = c.scale === 1 && (c.width === 375 || c.width === 1440);
+        const cctx = await newContext(browser, c.width, shotWidth && c.width < 768 ? 2 : 1);
+        const cp = await cctx.newPage();
+        let signedIn = false;
+        for (const s5 of pages5) {
+          if (s5.name !== "login" && !signedIn) {
+            await login(cp, superEmail, superPassword);
+            await cp.waitForURL(`${BASE}/admin`, { timeout: 20000 });
+            signedIn = true;
+          }
+          await cp.goto(s5.path, { waitUntil: "networkidle" });
+          if (shotWidth) {
+            await settle(cp);
+            await fullPageShot(cp, path.join(OUT5, `${s5.name}-${c.width}.png`), c.width);
+          }
+          const r = await runChecks(cp);
+          const issues = [
+            r.overflow.scrollWidth > r.overflow.clientWidth && `scroll horizontal: ${r.overflow.offenders.join(" | ")}`,
+            r.h1Count !== 1 && `${r.h1Count} h1`,
+            r.smallText.length > 0 && `texto < 16 px: ${r.smallText.join(" | ")}`,
+            r.smallTargets.length > 0 && `tocables < 48 px: ${r.smallTargets.join(" | ")}`,
+          ].filter(Boolean) as string[];
+          if (c.width === 375 || c.width === 1440) {
+            const v = await runAxe(cp);
+            if (v.length) issues.push(`axe: ${v.map((x) => `${x.impact} ${x.id} ×${x.count} (${x.first})`).join(" | ")}`);
+            if (s5.name === "usuarios") {
+              // También con el formulario de restablecer abierto.
+              await cp.locator("#cuentas li").filter({ hasText: adminEmail }).getByRole("button", { name: /^Restablecer contraseña de/ }).click();
+              const v2 = await runAxe(cp);
+              if (v2.length) issues.push(`axe (restablecer abierto): ${v2.map((x) => `${x.impact} ${x.id} ×${x.count}`).join(" | ")}`);
+            }
+          }
+          check(`11. Accesibilidad ${s5.name} @ ${c.label}`, issues.length === 0, issues.join(" ;; ").slice(0, 400) || undefined);
+        }
+        await cctx.close();
+      }
+      console.log(`Capturas de la fase 5 en ${OUT5}`);
     }
     await ctx.close();
   } finally {
@@ -760,6 +1125,11 @@ async function main() {
     const afterMedia = await listMedia();
     const newMedia = afterMedia.filter((m) => !before.media.includes(m));
     if (newMedia.length) await service.storage.from("media").remove(newMedia);
+    // También lo que haya creado la interfaz y no esté en userIds (correo con este rand).
+    const extra = (await service.auth.admin.listUsers({ perPage: 1000 })).data.users.filter(
+      (x) => x.email?.includes(rand) && !userIds.includes(x.id),
+    );
+    userIds.push(...extra.map((x) => x.id));
     for (const id of userIds) {
       await service.from("admins").delete().eq("user_id", id);
       await service.auth.admin.deleteUser(id);
@@ -781,6 +1151,9 @@ async function main() {
     };
     check("Datos finales idénticos al respaldo (4 campañas y site_settings)", same(finalCampaigns, backupCampaigns) && same(finalSettings, backupSettings));
     check("Sin restos de prueba (usuarios, admins, imágenes)", leftovers.users === 0 && leftovers.admins === 0 && leftovers.media === 0, JSON.stringify(leftovers));
+    const real = (await service.auth.admin.listUsers({ perPage: 1000 })).data.users.find((x) => x.email === REAL_SUPER_EMAIL);
+    const realRow = real ? (await service.from("admins").select("is_super").eq("user_id", real.id).maybeSingle()).data : null;
+    check("La cuenta real del administrador general sigue intacta", realRow?.is_super === true, REAL_SUPER_EMAIL);
   }
 
   if (consoleErrors.length) console.log(`\nErrores de consola (${consoleErrors.length}):\n  ${[...new Set(consoleErrors)].slice(0, 12).join("\n  ")}`);
