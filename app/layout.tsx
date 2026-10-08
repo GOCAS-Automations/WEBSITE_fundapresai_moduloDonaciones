@@ -32,7 +32,10 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="es-CO" className={poppins.variable}>
+    // data-scroll-behavior="smooth": Next 16 quita el desplazamiento suave MIENTRAS cambia de página, así cada
+    // navegación aterriza arriba al instante (sin ella, la subida animada de ~1 s se cortaba si la persona
+    // tocaba la pantalla). Las anclas dentro de una misma página siguen siendo suaves (globals.css).
+    <html lang="es-CO" className={poppins.variable} data-scroll-behavior="smooth">
       <body className="min-h-dvh antialiased">{children}</body>
     </html>
   );

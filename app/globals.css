@@ -81,10 +81,24 @@
   --shadow-lifted: 0 2px 4px rgb(43 34 51 / 0.05), 0 16px 40px rgb(43 34 51 / 0.1);
 }
 
+/* Alto del header fijo (components/site/SiteHeader). */
+:root {
+  --header-height: 4.5rem;
+}
+@media (width >= 64rem) {
+  :root {
+    --header-height: 5rem;
+  }
+}
+
 @layer base {
   html {
-    /* Las anclas (#campanas…) no quedan debajo del header fijo. */
-    scroll-padding-top: 6.5rem;
+    /*
+     * Las anclas (#campanas…) quedan justo debajo del header fijo. Next 16 también lee este valor
+     * al navegar para decidir si la página nueva ya está arriba (layout-router), así que debe ser
+     * al menos el alto del header (con su borde).
+     */
+    scroll-padding-top: calc(var(--header-height) + 1px); /* + el borde inferior del header */
     /* Respeta el tamaño de letra del sistema: todo en rem. */
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
@@ -113,6 +127,11 @@
 
   p {
     text-wrap: pretty;
+  }
+
+  /* Lo enfocable nunca queda pegado al header fijo ni a la barra de abajo (el anillo de foco mide 6 px). */
+  :where(a[href], button, input, select, textarea, summary) {
+    scroll-margin-block: 0.75rem;
   }
 
   /* Foco visible y grueso en todo lo interactivo. */
