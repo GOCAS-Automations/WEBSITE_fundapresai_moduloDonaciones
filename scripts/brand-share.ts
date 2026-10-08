@@ -84,7 +84,7 @@ function ogHtml() {
   h1 em{font-style:normal;color:#ffd9c7}
   p{margin-top:22px;font-size:24px;line-height:1.45;color:rgba(255,255,255,.86);max-width:560px}
   .pill{margin-top:34px;display:inline-flex;align-items:center;gap:12px;align-self:flex-start;
-    background:${BRAND.orange};color:#fff;font-weight:600;font-size:24px;padding:16px 30px;border-radius:999px;
+    background:${BRAND.cream};color:${BRAND.purple};font-weight:600;font-size:24px;padding:16px 30px;border-radius:999px;
     box-shadow:0 12px 28px -10px rgba(0,0,0,.45)}
   .bar{position:absolute;left:0;right:0;bottom:0;height:10px;
     background:linear-gradient(90deg, ${BRAND.pink} 0 33.4%, ${BRAND.periwinkle} 33.4% 66.7%, ${BRAND.terracotta} 66.7% 100%)}
