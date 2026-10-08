@@ -1,28 +1,42 @@
 /**
- * Crea (o confirma) la cuenta de ADMINISTRADOR GENERAL del panel.
+ * Crea, confirma o migra la cuenta de ADMINISTRADOR GENERAL del panel.
  *
- * Uso:  npm run admin:super [-- --email correo@dominio --name "Nombre"] [-- --reset-password]
- *       (por defecto, la de Cesar: cesarxemiliox@gmail.com · «Cesar Castaño · GOCAS»)
+ * Uso:  npm run admin:super [-- --username admin --name "Nombre"] [-- --from-email correo] [-- --reset-password]
+ *       (por defecto, la de Cesar: usuario «admin» · «Cesar Castaño · GOCAS»,
+ *        migrada desde su cuenta anterior por correo, cesarxemiliox@gmail.com)
  *
- * - Si el usuario NO existe: lo crea confirmado (sin correo), con una
- *   contraseña aleatoria de 20 caracteres sin caracteres ambiguos, y escribe
- *   el correo y la contraseña SOLO en .credenciales-admin.local (ignorado por
- *   git; el script lo comprueba con `git check-ignore` antes de crear nada).
- * - Si ya existe: no lo duplica ni cambia su contraseña; solo se asegura de
- *   que esté en `admins` con is_super = true (sin pisar su nombre).
- * - Con --reset-password (si Cesar olvida la suya; no hay SMTP): le asigna
- *   una contraseña aleatoria nueva y la escribe en el mismo archivo.
- * La contraseña nunca se imprime en la consola.
+ * Idempotente. En orden:
+ * 1. Si ya hay una cuenta con ese usuario: solo se asegura de que su correo
+ *    interno (<usuario>@fundapresai.invalid) esté bien y de que sea
+ *    administrador general. No cambia la contraseña ni el nombre.
+ * 2. Si no, y existe la cuenta ANTERIOR por correo (--from-email): la migra:
+ *    le pone el correo interno y `admins.username`, y conserva su nombre, su
+ *    is_super y SU CONTRASEÑA (Auth no la toca al cambiar el correo). En
+ *    .credenciales-admin.local pasa la contraseña del bloque «Correo:» al del
+ *    usuario, con la nota de que no cambió (sin leerla en voz alta: nunca se
+ *    imprime).
+ * 3. Si no existe ninguna: la crea confirmada con una contraseña aleatoria de
+ *    20 caracteres, que va SOLO al archivo de credenciales.
+ * --reset-password (si olvida la suya; no hay SMTP): contraseña aleatoria nueva,
+ * también solo en el archivo. El archivo debe estar ignorado por git (se
+ * comprueba con `git check-ignore` antes de tocar nada).
  */
-import { execFileSync } from "node:child_process";
-import { existsSync, writeFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import path from "node:path";
 
-import { createClient, type User } from "@supabase/supabase-js";
+import type { User } from "@supabase/supabase-js";
 
 import { generatePassword } from "../lib/admin/password";
-import type { Database } from "../lib/supabase/database.types";
-import { loadLocalEnv, requireEnv, ROOT } from "./lib/env";
+import { usernameSchema, usernameToEmail } from "../lib/admin/username";
+import {
+  assertIgnoredByGit,
+  CREDENTIALS,
+  findAuthUserByEmail,
+  readCredentials,
+  serviceClient,
+  upsertCredential,
+} from "./lib/accounts";
+import { loadLocalEnv, ROOT } from "./lib/env";
 
 loadLocalEnv();
 
@@ -30,100 +44,114 @@ const arg = (name: string, fallback: string) => {
   const i = process.argv.indexOf(`--${name}`);
   return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : fallback;
 };
-const EMAIL = arg("email", "cesarxemiliox@gmail.com").trim().toLowerCase();
+const USERNAME = usernameSchema.parse(arg("username", "admin"));
+const EMAIL = usernameToEmail(USERNAME);
 const NAME = arg("name", "Cesar Castaño · GOCAS").trim();
-const CREDENTIALS = path.join(ROOT, ".credenciales-admin.local");
-const SITE = (process.env.NEXT_PUBLIC_SITE_URL?.trim() || "https://fundapresai-donaciones.vercel.app").replace(/\/+$/, "");
+/** Cuenta anterior por correo: por defecto solo la de Cesar, y solo para el usuario «admin». */
+const FROM_EMAIL = arg("from-email", USERNAME === "admin" ? "cesarxemiliox@gmail.com" : "").trim().toLowerCase();
+const UNCHANGED_NOTE = "Tu contraseña no cambió: es la misma de antes.";
 
-const service = createClient<Database>(
-  requireEnv("NEXT_PUBLIC_SUPABASE_URL"),
-  requireEnv("SUPABASE_SERVICE_ROLE_KEY"),
-  { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } },
-);
-
-function assertIgnoredByGit(file: string) {
-  try {
-    execFileSync("git", ["check-ignore", "-q", path.relative(ROOT, file)], { cwd: ROOT, stdio: "ignore" });
-  } catch {
-    throw new Error(`${path.basename(file)} NO está ignorado por git. Agregue la regla a .gitignore antes de seguir.`);
-  }
-}
-
-async function findUserByEmail(email: string): Promise<User | null> {
-  for (let page = 1; page < 50; page++) {
-    const { data, error } = await service.auth.admin.listUsers({ page, perPage: 200 });
-    if (error) throw error;
-    const found = data.users.find((u) => u.email?.toLowerCase() === email);
-    if (found) return found;
-    if (data.users.length < 200) return null;
-  }
-  return null;
-}
-
-function writeCredentials(password: string, action: string) {
-  const today = new Date().toISOString().slice(0, 10);
-  writeFileSync(
-    CREDENTIALS,
-    [
-      "Panel de Fundapresai · administrador general",
-      `Entrar: ${SITE}/admin/login`,
-      `Correo: ${EMAIL}`,
-      `Contraseña: ${password}`,
-      "",
-      "Cámbiela desde «Mi cuenta» (/admin/cuenta) en su primer ingreso y luego borre este archivo.",
-      `${action}: ${today}. Este archivo está en .gitignore: nunca lo suba al repositorio ni lo comparta.`,
-      "",
-    ].join("\n"),
-    { encoding: "utf8", mode: 0o600 },
-  );
-}
+const service = serviceClient();
 
 async function main() {
   assertIgnoredByGit(CREDENTIALS);
   const reset = process.argv.includes("--reset-password");
+  let action: "existia" | "migrada" | "creada" = "existia";
+  let user: User | null = null;
 
-  let user = await findUserByEmail(EMAIL);
-  let created = false;
+  // 1. ¿Ya existe con este usuario (fila en admins o correo interno en Auth)?
+  const { data: byUsername, error: findError } = await service
+    .from("admins")
+    .select("user_id")
+    .eq("username", USERNAME)
+    .maybeSingle();
+  if (findError) throw findError;
+  if (byUsername) {
+    const res = await service.auth.admin.getUserById(byUsername.user_id);
+    if (res.error) throw res.error;
+    user = res.data.user;
+  } else {
+    user = await findAuthUserByEmail(service, EMAIL);
+  }
 
+  // 2. Si no, la cuenta anterior por correo → se migra (misma contraseña).
+  if (!user && FROM_EMAIL) {
+    const legacy = await findAuthUserByEmail(service, FROM_EMAIL);
+    if (legacy) {
+      user = legacy;
+      action = "migrada";
+    }
+  }
+
+  // 3. Si no existe ninguna, se crea.
+  let newPassword: string | null = null;
   if (!user) {
-    const password = generatePassword(20);
+    newPassword = generatePassword(20);
     const res = await service.auth.admin.createUser({
       email: EMAIL,
-      password,
+      password: newPassword,
       email_confirm: true,
       user_metadata: { name: NAME },
     });
     if (res.error) throw res.error;
     user = res.data.user;
-    created = true;
-    writeCredentials(password, "Creado");
-  } else if (reset) {
-    // Recuperación para el propio administrador general (no hay SMTP).
-    const password = generatePassword(20);
-    const res = await service.auth.admin.updateUserById(user.id, { password });
-    if (res.error) throw res.error;
-    writeCredentials(password, "Restablecida");
+    action = "creada";
   }
 
-  // Fila en `admins` como administrador general, sin duplicar ni pisar el nombre que ya tenga.
-  const { data: existing } = await service.from("admins").select("user_id").eq("user_id", user.id).maybeSingle();
-  const { error } = existing
-    ? await service.from("admins").update({ is_super: true }).eq("user_id", user.id)
-    : await service.from("admins").insert({ user_id: user.id, name: NAME, is_super: true });
+  // Correo interno (no cambia la contraseña).
+  if (user.email?.toLowerCase() !== EMAIL) {
+    const res = await service.auth.admin.updateUserById(user.id, { email: EMAIL, email_confirm: true });
+    if (res.error) throw res.error;
+  }
+
+  // Fila en `admins`: administrador general con este usuario, sin pisar el nombre que ya tenga.
+  const { data: row } = await service.from("admins").select("user_id").eq("user_id", user.id).maybeSingle();
+  const { error } = row
+    ? await service.from("admins").update({ is_super: true, username: USERNAME }).eq("user_id", user.id)
+    : await service.from("admins").insert({ user_id: user.id, name: NAME, username: USERNAME, is_super: true });
   if (error) {
-    if (created) await service.auth.admin.deleteUser(user.id);
+    if (action === "creada") await service.auth.admin.deleteUser(user.id);
     throw error;
   }
 
-  const { data: row } = await service.from("admins").select("is_super").eq("user_id", user.id).single();
+  if (reset && action !== "creada") {
+    newPassword = generatePassword(20);
+    const res = await service.auth.admin.updateUserById(user.id, { password: newPassword });
+    if (res.error) throw res.error;
+  }
+
+  const { data: saved } = await service.from("admins").select("name, is_super").eq("user_id", user.id).single();
+  const name = saved?.name || NAME;
+
+  // Archivo de credenciales: contraseña nueva, o la de la cuenta anterior pasada al usuario.
   const file = path.relative(ROOT, CREDENTIALS);
+  let fileNote = "";
+  if (newPassword) {
+    upsertCredential({ username: USERNAME, email: null, name, isSuper: true, password: newPassword, note: "" });
+    fileNote = ` La contraseña nueva está en ${file}.`;
+  } else {
+    const entries = readCredentials();
+    const hasEntry = entries.some((e) => e.username === USERNAME);
+    const legacy = entries.find((e) => e.email === FROM_EMAIL);
+    if (!hasEntry && legacy) {
+      upsertCredential(
+        { username: USERNAME, email: null, name, isSuper: true, password: legacy.password, note: UNCHANGED_NOTE },
+        { replaceEmail: FROM_EMAIL },
+      );
+      fileNote = ` En ${file} quedó con el usuario «${USERNAME}» y la misma contraseña.`;
+    }
+  }
+
+  const summary = {
+    creada: `Cuenta creada: usuario «${USERNAME}» (administrador general = ${saved?.is_super}).`,
+    migrada: `Cuenta ${FROM_EMAIL} migrada al usuario «${USERNAME}» (${EMAIL}): mismo nombre y misma contraseña; administrador general = ${saved?.is_super}.`,
+    existia: `La cuenta «${USERNAME}» ya existía: no se duplicó ni se cambió su contraseña. Administrador general = ${saved?.is_super}.`,
+  }[action];
   console.log(
-    created
-      ? `Cuenta creada: ${EMAIL} (administrador general = ${row?.is_super}). Credenciales en ${file}.`
-      : reset
-        ? `Contraseña de ${EMAIL} restablecida. La nueva está en ${file}.`
-        : `La cuenta ${EMAIL} ya existía: no se duplicó ni se cambió su contraseña. Administrador general = ${row?.is_super}.` +
-          (existsSync(CREDENTIALS) ? "" : " (Si olvidó la contraseña: npm run admin:super -- --reset-password)"),
+    summary +
+      (reset && action !== "creada" ? " Contraseña restablecida." : "") +
+      fileNote +
+      (!newPassword && !existsSync(CREDENTIALS) ? " (Si olvidó la contraseña: npm run admin:super -- --reset-password)" : ""),
   );
 }
 

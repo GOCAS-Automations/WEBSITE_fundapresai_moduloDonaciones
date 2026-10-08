@@ -19,6 +19,7 @@
     "backup": "tsx scripts/backup.ts",
     "auth:configure": "tsx scripts/configure-auth.ts",
     "admin:super": "tsx scripts/create-super-admin.ts",
+    "admin:user": "tsx scripts/create-admin.ts",
     "test:rls": "tsx scripts/test-rls.ts",
     "shots": "tsx scripts/screenshot.ts",
     "check:seo": "tsx scripts/check-seo.ts",
