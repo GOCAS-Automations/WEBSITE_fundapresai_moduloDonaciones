@@ -6,11 +6,16 @@ import { requireSupabasePublicEnv } from "@/lib/env";
 import type { Database } from "./database.types";
 
 /**
- * Cliente con la clave SECRETA (service_role / sb_secret_...). Salta RLS.
+ * Cliente con la clave SECRETA (service_role / sb_secret_...). Salta RLS y
+ * puede usar auth.admin (crear, modificar y borrar usuarios de Auth).
  *
- * USO EXCLUSIVO de app/api/heartbeat/route.ts (plan §10.1 y §12).
- * No importarlo en ningún otro archivo de la app. Los scripts locales
- * (scripts/*.ts) crean su propio cliente.
+ * Usos permitidos (y ningún otro; ESLint lo restringe en eslint.config.mjs):
+ * 1. app/api/heartbeat/route.ts — latido de Supabase (plan §10.1 y §12).
+ * 2. lib/admin/accounts.ts — gestión de usuarios del panel (fase 5): solo
+ *    DESPUÉS de verificar con la sesión y RLS que quien llama es
+ *    administrador general (requireSuperAdmin) o, para su propio nombre,
+ *    administrador (updateOwnAdminName).
+ * Los scripts locales (scripts/*.ts) crean su propio cliente.
  */
 export function createSupabaseServiceRoleClient() {
   const { url } = requireSupabasePublicEnv();
