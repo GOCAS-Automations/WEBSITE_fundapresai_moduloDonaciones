@@ -6,6 +6,8 @@ import { z } from "zod";
 
 import { fail, type ActionState } from "@/lib/admin/action-state";
 import { humanizeError } from "@/lib/admin/errors";
+import { newPasswordSchema } from "@/lib/admin/password";
+import { isPasswordRecoveryEnabled } from "@/lib/env";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { fieldErrors } from "@/lib/validations";
 
@@ -42,16 +44,16 @@ export async function signOut(): Promise<void> {
 
 const passwordSchema = z
   .object({
-    password: z
-      .string()
-      .min(8, "Use al menos 8 caracteres.")
-      .max(72, "Use máximo 72 caracteres.")
-      .refine((v) => /[A-Za-zÁÉÍÓÚÑáéíóúñ]/.test(v) && /\d/.test(v), "Mezcle letras y números."),
+    password: newPasswordSchema,
     confirm: z.string(),
   })
   .refine((v) => v.password === v.confirm, { path: ["confirm"], message: "Las dos contraseñas no coinciden." });
 
+/** Nueva contraseña desde el enlace de recuperación (solo con PASSWORD_RECOVERY_ENABLED=true). */
 export async function updatePassword(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  if (!isPasswordRecoveryEnabled()) {
+    return fail("La recuperación por correo está desactivada. Pídale al administrador general que le restablezca la contraseña.");
+  }
   const parsed = passwordSchema.safeParse({
     password: String(formData.get("password") ?? ""),
     confirm: String(formData.get("confirm") ?? ""),

@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { isPasswordRecoveryEnabled } from "@/lib/env";
 import { updateSession } from "@/lib/supabase/proxy";
 
 /** Rutas del panel que se abren sin sesión (entrar y recuperar la contraseña). */
@@ -7,16 +8,31 @@ const OPEN_PATHS = ["/admin/login", "/admin/recuperar", "/admin/restablecer"];
 
 const isOpenPath = (path: string) => OPEN_PATHS.some((p) => path === p || path.startsWith(`${p}/`));
 
+/** Recuperación por correo: apagada salvo PASSWORD_RECOVERY_ENABLED=true (no hay SMTP). */
+const RECOVERY_PATHS = ["/admin/recuperar", "/admin/restablecer"];
+const isRecoveryPath = (path: string) => RECOVERY_PATHS.some((p) => path === p || path.startsWith(`${p}/`));
+
 /**
  * Proxy (el «middleware» de Next 16), solo para /admin:
  * 1. Refresca la sesión de Supabase en cada visita.
  * 2. Sin sesión → /admin/login?next=<ruta>.
+ * 3. Si la recuperación por correo está apagada (por defecto), /admin/recuperar
+ *    y /admin/restablecer → /admin/login.
  * Primera capa de protección: el layout del panel y cada Server Action
  * vuelven a verificar en el servidor que el usuario está en `admins`.
  */
 export async function proxy(request: NextRequest) {
-  const { response, hasUser } = await updateSession(request);
   const path = request.nextUrl.pathname;
+
+  // Sin SMTP, «¿Olvidó su contraseña?» y «Nueva contraseña» llevan al login.
+  if (isRecoveryPath(path) && !isPasswordRecoveryEnabled()) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/admin/login";
+    url.search = "";
+    return NextResponse.redirect(url);
+  }
+
+  const { response, hasUser } = await updateSession(request);
 
   // Las Server Actions responden ellas mismas «su sesión se cerró» (un 307 rompería la llamada).
   const isServerAction = request.method === "POST" && request.headers.has("next-action");

@@ -37,6 +37,17 @@ export function getSiteUrl(): string {
   return "http://localhost:3000";
 }
 
+/**
+ * Recuperación de contraseña por correo («¿Olvidó su contraseña?»). APAGADA
+ * por defecto: no hay SMTP, así que el administrador general restablece las
+ * contraseñas desde /admin/usuarios. Con PASSWORD_RECOVERY_ENABLED=true
+ * (variable SOLO de servidor; requiere SMTP y volver a desplegar) se reactivan
+ * /admin/recuperar, /admin/restablecer y /auth/confirm, y el enlace del login.
+ */
+export function isPasswordRecoveryEnabled(): boolean {
+  return process.env.PASSWORD_RECOVERY_ENABLED?.trim().toLowerCase() === "true";
+}
+
 /** Solo se indexa cuando NEXT_PUBLIC_ALLOW_INDEXING === "true" (subdominio definitivo). */
 export function isIndexingAllowed(): boolean {
   return process.env.NEXT_PUBLIC_ALLOW_INDEXING?.trim().toLowerCase() === "true";

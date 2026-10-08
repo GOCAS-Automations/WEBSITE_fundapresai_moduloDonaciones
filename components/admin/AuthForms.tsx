@@ -1,61 +1,18 @@
 "use client";
 
-import { Eye, EyeOff, KeyRound, LogIn, Mail } from "lucide-react";
+import { KeyRound, LogIn, Mail } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useId, useState, type FormEvent, type ReactNode } from "react";
+import { useId, useState, type FormEvent } from "react";
 
 import { signIn, updatePassword } from "@/app/admin/actions";
-import { cn } from "@/components/ui/cn";
 import type { ActionState } from "@/lib/admin/action-state";
+import { PASSWORD_HINT } from "@/lib/admin/password";
 import { humanizeError } from "@/lib/admin/errors";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { Notice } from "./ui";
 import { describedBy, FieldShell, FormMessage, inputClasses, SubmitButton, TextField, useAdminForm } from "./form";
-
-/** Contraseña con botón «Mostrar» (con texto, 48 px). */
-function PasswordField({
-  label,
-  name,
-  autoComplete,
-  error,
-  hint,
-}: {
-  label: string;
-  name: string;
-  autoComplete: string;
-  error?: string;
-  hint?: ReactNode;
-}) {
-  const id = useId();
-  const [visible, setVisible] = useState(false);
-  return (
-    <FieldShell id={id} label={label} error={error} hint={hint}>
-      <div className="relative">
-        <input
-          id={id}
-          name={name}
-          type={visible ? "text" : "password"}
-          autoComplete={autoComplete}
-          aria-required
-          aria-invalid={error ? true : undefined}
-          aria-describedby={describedBy(id, { hint, error })}
-          className={cn(inputClasses, "pr-32")}
-        />
-        <button
-          type="button"
-          onClick={() => setVisible((v) => !v)}
-          aria-pressed={visible}
-          className="absolute inset-y-1 right-1 inline-flex min-h-12 items-center gap-1.5 rounded-xl px-3 text-base font-semibold text-brand-purple hover:bg-brand-purple-soft"
-        >
-          {visible ? <EyeOff aria-hidden="true" className="size-5" /> : <Eye aria-hidden="true" className="size-5" />}
-          {visible ? "Ocultar" : "Mostrar"}
-          <span className="sr-only"> contraseña</span>
-        </button>
-      </div>
-    </FieldShell>
-  );
-}
+import { PasswordField } from "./PasswordField";
 
 /** La ruta de regreso (?next=) se lee al enviar: así la página de login es estática. */
 function signInWithNext(prev: ActionState, formData: FormData) {
@@ -63,7 +20,12 @@ function signInWithNext(prev: ActionState, formData: FormData) {
   return signIn(prev, formData);
 }
 
-export function LoginForm() {
+/**
+ * Formulario de entrada. Sin SMTP no hay «¿Olvidó su contraseña?» por correo:
+ * el administrador general la restablece desde el panel. Con
+ * PASSWORD_RECOVERY_ENABLED=true vuelve el enlace a /admin/recuperar.
+ */
+export function LoginForm({ recoveryEnabled = false }: { recoveryEnabled?: boolean }) {
   const { state, fieldErrors, pending, formRef, onSubmit } = useAdminForm(signInWithNext);
   return (
     <form ref={formRef} onSubmit={onSubmit} noValidate className="space-y-6">
@@ -82,14 +44,20 @@ export function LoginForm() {
         Entrar
       </SubmitButton>
       <FormMessage state={state} />
-      <p className="text-center">
-        <Link
-          href="/admin/recuperar"
-          className="inline-flex min-h-12 items-center rounded-xl px-3 text-lg font-medium text-brand-purple underline underline-offset-4 hover:bg-brand-purple-soft"
-        >
-          ¿Olvidó su contraseña?
-        </Link>
-      </p>
+      {recoveryEnabled ? (
+        <p className="text-center">
+          <Link
+            href="/admin/recuperar"
+            className="inline-flex min-h-12 items-center rounded-xl px-3 text-lg font-medium text-brand-purple underline underline-offset-4 hover:bg-brand-purple-soft"
+          >
+            ¿Olvidó su contraseña?
+          </Link>
+        </p>
+      ) : (
+        <p className="rounded-2xl bg-surface-muted px-4 py-3 text-center text-base text-ink-muted">
+          ¿Olvidó su contraseña? Pídale al administrador general que se la restablezca.
+        </p>
+      )}
     </form>
   );
 }
@@ -191,7 +159,7 @@ export function ResetPasswordForm() {
         label="Nueva contraseña"
         name="password"
         autoComplete="new-password"
-        hint="Al menos 8 caracteres, con letras y números."
+        hint={PASSWORD_HINT}
         error={fieldErrors.password}
       />
       <PasswordField label="Repita la nueva contraseña" name="confirm" autoComplete="new-password" error={fieldErrors.confirm} />

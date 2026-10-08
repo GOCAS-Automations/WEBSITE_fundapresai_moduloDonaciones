@@ -1,6 +1,7 @@
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
 
+import { isPasswordRecoveryEnabled } from "@/lib/env";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 /**
@@ -15,6 +16,9 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
  *   Solo funciona en el mismo navegador donde se pidió.
  * Si todo sale bien, la persona queda con sesión y va a definir la nueva
  * contraseña; si no, vuelve a «¿Olvidó su contraseña?» con un aviso.
+ *
+ * INACTIVO por defecto (no hay SMTP): sin PASSWORD_RECOVERY_ENABLED=true
+ * redirige al login sin tocar el enlace.
  */
 const OTP_TYPES: EmailOtpType[] = ["recovery", "invite", "magiclink", "email", "signup", "email_change"];
 
@@ -23,6 +27,13 @@ function safeNext(value: string | null): string {
 }
 
 export async function GET(request: NextRequest) {
+  if (!isPasswordRecoveryEnabled()) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/admin/login";
+    url.search = "";
+    return NextResponse.redirect(url);
+  }
+
   const { searchParams } = request.nextUrl;
   const next = safeNext(searchParams.get("next"));
   const tokenHash = searchParams.get("token_hash");
