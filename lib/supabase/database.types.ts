@@ -20,18 +20,21 @@ export type Database = {
       admins: {
         Row: {
           created_at: string
+          is_super: boolean
           name: string
           updated_at: string
           user_id: string
         }
         Insert: {
           created_at?: string
+          is_super?: boolean
           name?: string
           updated_at?: string
           user_id: string
         }
         Update: {
           created_at?: string
+          is_super?: boolean
           name?: string
           updated_at?: string
           user_id?: string
@@ -167,6 +170,7 @@ export type Database = {
     }
     Functions: {
       is_admin: { Args: never; Returns: boolean }
+      is_super_admin: { Args: never; Returns: boolean }
       last_heartbeat: { Args: never; Returns: string }
       record_heartbeat: { Args: { source: string }; Returns: Json }
       set_featured_campaign: {

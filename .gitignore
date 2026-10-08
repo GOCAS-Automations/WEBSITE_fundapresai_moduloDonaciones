@@ -36,6 +36,10 @@ yarn-error.log*
 .env.*
 !.env.example
 
+# credenciales locales (p. ej. .credenciales-admin.local): NUNCA al repo
+*.local
+.credenciales-admin.local
+
 # respaldos locales de la base (scripts/backup.ts)
 /backups/
 
