@@ -1,10 +1,11 @@
-import { MapPin } from "lucide-react";
+import { ExternalLink, MapPin } from "lucide-react";
 import Image from "next/image";
 
 import { LeafSymbol } from "@/components/brand/LeafSymbol";
 import { MarkdownContent } from "@/components/content/MarkdownContent";
 import { Container } from "@/components/ui/Container";
 import { shouldSkipOptimization } from "@/lib/images";
+import type { SchoolSite } from "@/lib/links";
 import type { About as AboutContent } from "@/lib/validations";
 import { SectionHeading } from "./SectionHeading";
 
@@ -22,6 +23,8 @@ const STAT_TILES = [
 type AboutProps = {
   content: AboutContent;
   city: string | null;
+  /** Sitio del colegio (panel → Redes). Sin él, no se muestra el enlace del final. */
+  school: SchoolSite | null;
 };
 
 /**
@@ -31,7 +34,7 @@ type AboutProps = {
  * de la baldosa morada, a lo ancho, con su descripción (image_alt). Sin
  * descripción (datos anteriores al campo) se trata como decorativa: alt="".
  */
-export function About({ content, city }: AboutProps) {
+export function About({ content, city, school }: AboutProps) {
   return (
     <section id="quienes-somos" aria-labelledby="quienes-somos-title" className="bg-[#fdf8ef] py-20 lg:py-28">
       <Container className="grid items-start gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-20">
@@ -40,6 +43,22 @@ export function About({ content, city }: AboutProps) {
           <MarkdownContent variant="inline" className="mt-6 max-w-[38rem]">
             {content.body_md}
           </MarkdownContent>
+          {school && (
+            <p className="mt-8">
+              <a
+                href={school.href}
+                rel="noopener"
+                className="inline-block min-h-12 py-2 text-lg font-medium text-brand-purple underline decoration-2 underline-offset-[6px] hover:text-brand-purple-dark"
+              >
+                Conozca más sobre el colegio en{" "}
+                {/* El ícono va pegado al dominio: si el texto se parte en dos líneas, no queda suelto al final. */}
+                <span className="whitespace-nowrap">
+                  {school.host}
+                  <ExternalLink aria-hidden="true" className="ml-2 inline size-5 align-[-0.2em]" />
+                </span>
+              </a>
+            </p>
+          )}
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">

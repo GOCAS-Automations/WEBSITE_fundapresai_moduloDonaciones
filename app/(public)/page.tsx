@@ -7,7 +7,7 @@ import { Hero } from "@/components/landing/Hero";
 import { HowToDonate } from "@/components/landing/HowToDonate";
 import { SectionHashFocus } from "@/components/site/SectionLinks";
 import { getActiveCampaigns, getSiteSettings } from "@/lib/content";
-import { phoneDigits } from "@/lib/links";
+import { phoneDigits, schoolSite } from "@/lib/links";
 import { BRAND_OG_IMAGE, buildMetadata, jsonLdScript, ngoJsonLd, websiteJsonLd } from "@/lib/seo";
 import type { Hero as HeroContent } from "@/lib/validations";
 
@@ -63,7 +63,7 @@ export default async function HomePage() {
       <Hero content={settings?.hero ?? FALLBACK_HERO} featured={featured} />
       <CampaignsSection campaigns={campaigns} />
       {settings?.howToDonate && <HowToDonate content={settings.howToDonate} />}
-      {settings?.about && <About content={settings.about} city={settings.contact?.city ?? null} />}
+      {settings?.about && <About content={settings.about} city={settings.contact?.city ?? null} school={schoolSite(socials?.website)} />}
       {settings?.help && <HelpBlock content={settings.help} contact={settings.contact} />}
       <SectionHashFocus />
     </main>

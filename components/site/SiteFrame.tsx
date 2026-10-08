@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { SiteFooter } from "@/components/site/SiteFooter";
 import { SiteHeader } from "@/components/site/SiteHeader";
 import { getActiveCampaigns, getCopyrightYear, getSiteSettings } from "@/lib/content";
-import { donationHref } from "@/lib/links";
+import { donationHref, schoolSite } from "@/lib/links";
 
 /**
  * Marco de las páginas públicas: enlace para saltar al contenido, header fijo
@@ -16,6 +16,9 @@ export async function SiteFrame({ children }: { children: ReactNode }) {
   // «Donar» del header en el detalle de cada campaña: su propio enlace de donación.
   const donateCampaigns = campaigns.map((c) => ({ slug: c.slug, title: c.title, href: donationHref(c.donation_url, c.slug) }));
 
+  // Sitio del colegio (panel → Contenido → Redes): sin él no se muestran los enlaces del header.
+  const school = schoolSite(settings?.socials?.website);
+
   return (
     <>
       <a
@@ -24,7 +27,7 @@ export async function SiteFrame({ children }: { children: ReactNode }) {
       >
         Saltar al contenido
       </a>
-      <SiteHeader donateCampaigns={donateCampaigns} />
+      <SiteHeader donateCampaigns={donateCampaigns} school={school} />
       {children}
       <SiteFooter contact={settings?.contact ?? null} socials={settings?.socials ?? null} year={year} />
     </>

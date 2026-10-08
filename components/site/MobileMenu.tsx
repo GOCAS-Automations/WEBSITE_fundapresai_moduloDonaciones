@@ -1,17 +1,19 @@
 "use client";
 
-import { ChevronRight, Menu, X } from "lucide-react";
+import { ChevronRight, ExternalLink, Menu, X } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 
 import { buttonClasses } from "@/components/ui/Button";
+import type { SchoolSite } from "@/lib/links";
 import { HELP_NAV, MAIN_NAV } from "./nav";
 import { SectionLink } from "./SectionLinks";
 
 /**
  * Menú del celular: botón con TEXTO («Menú» / «Cerrar»), no solo un ícono
  * (plan §5.1). Se cierra con Escape, al tocar fuera o al elegir un enlace.
+ * Al final, «Sitio del colegio» (misma pestaña) si el panel tiene la dirección.
  */
-export function MobileMenu() {
+export function MobileMenu({ school }: { school: SchoolSite | null }) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -72,6 +74,21 @@ export function MobileMenu() {
                 </SectionLink>
               </li>
             ))}
+            {school && (
+              <li>
+                <a
+                  href={school.href}
+                  rel="noopener"
+                  className="flex min-h-14 items-center justify-between gap-3 rounded-2xl px-4 py-3 text-lg font-medium text-ink transition-colors hover:bg-brand-purple-soft hover:text-brand-purple"
+                >
+                  <span>
+                    Sitio del colegio
+                    <span className="sr-only"> (sale de este sitio)</span>
+                  </span>
+                  <ExternalLink aria-hidden="true" className="size-6 shrink-0 text-brand-purple" />
+                </a>
+              </li>
+            )}
           </ul>
         </nav>
       </div>

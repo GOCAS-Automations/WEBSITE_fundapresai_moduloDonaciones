@@ -44,3 +44,24 @@ export function donationHref(donationUrl: string, slug: string): string {
   }
   return url.toString();
 }
+
+/** Sitio web del colegio ya listo para mostrar: su enlace y el dominio sin «www.» (para el texto del enlace). */
+export type SchoolSite = { href: string; host: string };
+
+/**
+ * Sitio del colegio a partir de `site_settings.socials.website` (se edita en el
+ * panel). Devuelve null si está vacío o no es una dirección http(s) válida, y
+ * entonces no se muestran los enlaces al sitio del colegio.
+ */
+export function schoolSite(website: string | null | undefined): SchoolSite | null {
+  const raw = website?.trim();
+  if (!raw) return null;
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "https:" && url.protocol !== "http:") return null;
+  return { href: raw, host: url.hostname.replace(/^www\./i, "") };
+}
