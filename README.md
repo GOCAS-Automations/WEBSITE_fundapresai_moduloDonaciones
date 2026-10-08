@@ -156,10 +156,7 @@ Todo campo de imagen (portadas, hero, «Quiénes somos» e imagen para redes) ti
 
 ## Latido de Supabase (heartbeat)
 
-El plan gratuito pausa el proyecto tras 7 días sin actividad. Hay dos latidos independientes:
-
-1. **Vercel Cron** diario (`vercel.json`) → `GET /api/heartbeat`. Vercel envía `CRON_SECRET` como `Authorization: Bearer`.
-2. **GitHub Actions** cada 2 días (`.github/workflows/heartbeat.yml`), con secretos `CRON_SECRET` y `SITE_URL`.
+El plan gratuito pausa el proyecto tras 7 días sin actividad. El latido lo da el **Vercel Cron** diario (`vercel.json`) → `GET /api/heartbeat`. Vercel envía `CRON_SECRET` como `Authorization: Bearer`. (Decisión del 8-oct-2026: sin latido de respaldo en GitHub Actions, como en los demás sitios de GOCAS.)
 
 El endpoint responde 401 sin el secreto y 200 con `{ ok, pinged_at, active_campaigns }`. Probarlo a mano:
 
@@ -167,12 +164,10 @@ El endpoint responde 401 sin el secreto y 200 con `{ ok, pinged_at, active_campa
 curl -i -H "Authorization: Bearer $CRON_SECRET" "$SITE_URL/api/heartbeat?source=manual"
 ```
 
-**Reactivar el workflow:** GitHub desactiva los workflows programados de repos sin commits en 60 días. Si pasa: **Actions → Latido de Supabase → Enable workflow** y luego **Run workflow**.
-
 ## Copias de seguridad
 
-- **Semanal en GitHub** (`.github/workflows/backup.yml`, lunes, más `workflow_dispatch`): exporta a JSON y hace commit en la rama `backups` de este repo. Secretos: `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY`. La rama `backups` no despliega en Vercel. **Si el repo es público, los respaldos también** (incluye campañas en borrador u ocultas).
-- **Local:** `npm run backup`.
+- **Sin respaldo automático por ahora** (decisión del 8-oct-2026; se agregará en una tanda para todos los sitios si no tiene costo). El plan gratuito de Supabase no hace backups.
+- **Local:** `npm run backup` exporta a JSON en `backups/`.
 - **Restaurar** (upsert por clave primaria):
 
 ```bash

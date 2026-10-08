@@ -1,9 +1,4 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "crons": [{ "path": "/api/heartbeat", "schedule": "0 13 * * *" }],
-  "git": {
-    "deploymentEnabled": {
-      "backups": false
-    }
-  }
+  "crons": [{ "path": "/api/heartbeat", "schedule": "0 13 * * *" }]
 }
