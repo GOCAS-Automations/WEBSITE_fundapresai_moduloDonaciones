@@ -27,7 +27,7 @@ export async function createSupabaseServerClient() {
           cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options));
         } catch {
           // Llamado desde un Server Component: no puede escribir cookies.
-          // El proxy (fase 4) es quien refresca la sesión.
+          // El proxy (proxy.ts) es quien refresca la sesión.
         }
       },
     },
@@ -45,6 +45,6 @@ export async function requireAdmin() {
   } = await supabase.auth.getUser();
   if (!user) return { ok: false as const, reason: "sin-sesion" as const, supabase };
   const { data: isAdmin, error } = await supabase.rpc("is_admin");
-  if (error || !isAdmin) return { ok: false as const, reason: "no-admin" as const, supabase };
+  if (error || !isAdmin) return { ok: false as const, reason: "no-admin" as const, supabase, user };
   return { ok: true as const, user, supabase };
 }
