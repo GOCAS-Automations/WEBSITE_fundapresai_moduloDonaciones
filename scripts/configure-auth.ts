@@ -1,12 +1,17 @@
 /**
  * Configura Supabase Auth con la Management API (plan §4 y §9).
  *
- * 1. Registro público desactivado (Cesar crea los usuarios en el dashboard),
- *    site_url y lista de redirecciones permitidas.
+ * 1. Registro público desactivado (las cuentas las crea el administrador
+ *    general en /admin/usuarios), sin correo de confirmación
+ *    (mailer_autoconfirm), contraseñas de al menos 10 caracteres, cambio de
+ *    contraseña sin código por correo (no hay SMTP; «Mi cuenta» pide la
+ *    contraseña actual), site_url y lista de redirecciones permitidas.
  * 2. Correos de recuperación e invitación en español. En el plan gratuito
  *    Supabase solo deja editarlos si hay un SMTP propio: si no, se avisa y sigue.
+ *    Solo sirven si se activa PASSWORD_RECOVERY_ENABLED (ver README).
  *
  * Uso:  npm run auth:configure [-- --site-url https://midominio]
+ *       (hoy: -- --site-url https://fundapresai-donaciones.vercel.app)
  * Requiere SUPABASE_ACCESS_TOKEN (sbp_...) y NEXT_PUBLIC_SUPABASE_URL.
  *
  * Los enlaces de los correos usan token_hash y apuntan a /auth/confirm, que se
@@ -48,6 +53,12 @@ async function main() {
 
   const base = {
     disable_signup: true,
+    // Sin SMTP no hay correos: las cuentas nacen confirmadas (el panel además
+    // las crea con email_confirm: true) y cambiar la contraseña no exige
+    // reautenticarse con un código por correo.
+    mailer_autoconfirm: true,
+    security_update_password_require_reauthentication: false,
+    password_min_length: 10,
     site_url: siteUrl,
     uri_allow_list: ["http://localhost:3000/**", "https://*.vercel.app/**"].join(","),
   };
@@ -95,6 +106,9 @@ async function main() {
     JSON.stringify(
       {
         disable_signup: cfg.disable_signup,
+        mailer_autoconfirm: cfg.mailer_autoconfirm,
+        security_update_password_require_reauthentication: cfg.security_update_password_require_reauthentication,
+        password_min_length: cfg.password_min_length,
         site_url: cfg.site_url,
         uri_allow_list: cfg.uri_allow_list,
         plantillas_en_espanol: second.ok,
